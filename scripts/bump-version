@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Bump version, merge changelog, commit, and tag.
+# Usage: ./scripts/bump-version <major|minor|patch>
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+INIT_FILE="${PROJECT_DIR}/grncli/__init__.py"
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <major|minor|patch>"
+    exit 1
+fi
+
+BUMP_TYPE="$1"
+
+# Extract current version
+CURRENT_VERSION=$(grep -oP "__version__ = '\K[^']+" "$INIT_FILE" 2>/dev/null || \
+                  grep -o "__version__ = '[^']*'" "$INIT_FILE" | sed "s/__version__ = '//;s/'//")
+
+if [ -z "$CURRENT_VERSION" ]; then
+    echo "Error: Could not read version from $INIT_FILE"
+    exit 1
+fi
+
+echo "Current version: ${CURRENT_VERSION}"
+
+# Parse semver
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+# Bump
+case "$BUMP_TYPE" in
+    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+    patch) PATCH=$((PATCH + 1)) ;;
+    *)
+        echo "Error: Invalid bump type '$BUMP_TYPE'. Use: major, minor, patch"
+        exit 1
+        ;;
+esac
+
+NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+echo "New version:     ${NEW_VERSION}"
+
+# Update __init__.py
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/__version__ = '${CURRENT_VERSION}'/__version__ = '${NEW_VERSION}'/" "$INIT_FILE"
+else
+    sed -i "s/__version__ = '${CURRENT_VERSION}'/__version__ = '${NEW_VERSION}'/" "$INIT_FILE"
+fi
+
+echo "Updated ${INIT_FILE}"
+
+# Merge changelog fragments
+echo ""
+python3 "${SCRIPT_DIR}/render-changelog" --merge "${NEW_VERSION}"
+
+# Commit and tag
+cd "$PROJECT_DIR"
+git add grncli/__init__.py .changes/ CHANGELOG.md
+git commit -m "release: v${NEW_VERSION}"
+git tag "v${NEW_VERSION}"
+
+echo ""
+echo "Release v${NEW_VERSION} ready!"
+echo "Run: git push && git push --tags"

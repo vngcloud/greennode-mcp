@@ -1,0 +1,47 @@
+{
+    "description": "The Greenode Command Line Interface is a unified tool to manage your Greenode (VNG Cloud) services.",
+    "synopsis": "grn [options] <command> <subcommand> [parameters]",
+    "help_usage": "Use *grn command help* for information on a specific command. The synopsis for each command shows its parameters and their usage. Optional parameters are shown in square brackets.",
+    "options": {
+        "debug": {
+            "action": "store_true",
+            "help": "<p>Turn on debug logging.</p>"
+        },
+        "endpoint-url": {
+            "help": "<p>Override command's default URL with the given URL.</p>"
+        },
+        "no-verify-ssl": {
+            "action": "store_false",
+            "dest": "verify_ssl",
+            "help": "<p>By default, the Greenode CLI uses SSL when communicating with Greenode services. For each SSL connection, the CLI will verify SSL certificates. This option overrides the default behavior of verifying SSL certificates.</p>"
+        },
+        "output": {
+            "choices": ["json", "text", "table"],
+            "help": "<p>The formatting style for command output.</p>"
+        },
+        "query": {
+            "help": "<p>A JMESPath query to use in filtering the response data.</p>"
+        },
+        "profile": {
+            "help": "<p>Use a specific profile from your credential file.</p>"
+        },
+        "region": {
+            "help": "<p>The region to use. Overrides config/env settings.</p>"
+        },
+        "color": {
+            "choices": ["on", "off", "auto"],
+            "default": "auto",
+            "help": "<p>Turn on/off color output.</p>"
+        },
+        "cli-read-timeout": {
+            "dest": "read_timeout",
+            "type": "int",
+            "help": "<p>The maximum socket read time in seconds. If the value is set to 0, the socket read will be blocking and not timeout. The default value is 30 seconds.</p>"
+        },
+        "cli-connect-timeout": {
+            "dest": "connect_timeout",
+            "type": "int",
+            "help": "<p>The maximum socket connect time in seconds. If the value is set to 0, the socket connect will be blocking and not timeout. The default value is 30 seconds.</p>"
+        }
+    }
+}

@@ -1,0 +1,7 @@
+[
+    {
+        "type": "feature",
+        "category": "core",
+        "description": "Initial release of Greenode CLI with VKS service support"
+    }
+]

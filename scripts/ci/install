@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# CI installation script for Greenode CLI
+# Usage: ./scripts/ci/install
+
+set -e
+
+echo "Installing Greenode CLI for CI..."
+
+# Install production requirements
+pip install -r requirements.txt
+
+# Build wheel
+python setup.py bdist_wheel
+
+# Install the wheel
+pip install dist/*.whl
+
+echo "Greenode CLI installed successfully."
+grn --version

@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Create a changelog fragment in .changes/next-release/."""
+
+import argparse
+import json
+import os
+import random
+import string
+import sys
+
+VALID_TYPES = ['feature', 'bugfix', 'enhancement', 'api-change']
+CHANGES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    '.changes', 'next-release',
+)
+
+
+def random_id(length=8):
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+
+
+def prompt(message, valid_options=None):
+    while True:
+        response = input(f'{message}: ').strip()
+        if valid_options and response not in valid_options:
+            print(f'  Valid options: {", ".join(valid_options)}')
+            continue
+        if response:
+            return response
+        print('  Value is required.')
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Create a changelog entry')
+    parser.add_argument('-t', '--type', choices=VALID_TYPES, help='Change type')
+    parser.add_argument('-c', '--category', help='Category (e.g. vks, auth, configure)')
+    parser.add_argument('-d', '--description', help='Description of the change')
+    args = parser.parse_args()
+
+    change_type = args.type or prompt(f'Type ({"/".join(VALID_TYPES)})', VALID_TYPES)
+    category = args.category or prompt('Category')
+    description = args.description or prompt('Description')
+
+    entry = {
+        'type': change_type,
+        'category': category,
+        'description': description,
+    }
+
+    os.makedirs(CHANGES_DIR, exist_ok=True)
+    filename = f'{change_type}-{category}-{random_id()}.json'
+    filepath = os.path.join(CHANGES_DIR, filename)
+
+    with open(filepath, 'w') as f:
+        json.dump(entry, f, indent=2)
+        f.write('\n')
+
+    print(f'Created: .changes/next-release/{filename}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

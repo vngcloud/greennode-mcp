@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# CI test runner for Greenode CLI
+# Usage: ./scripts/ci/run-tests
+
+set -e
+
+echo "Running Greenode CLI tests..."
+
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+python -m pytest tests/ -v --tb=short
+
+echo "All tests passed."
