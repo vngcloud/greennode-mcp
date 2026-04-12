@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Render CHANGELOG.md from .changes/ fragment files."""
+
+import glob
+import json
+import os
+import sys
+from datetime import date
+
+CHANGES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    '.changes',
+)
+CHANGELOG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'CHANGELOG.md',
+)
+
+TYPE_HEADERS = {
+    'feature': 'Features',
+    'bugfix': 'Bug Fixes',
+    'enhancement': 'Enhancements',
+    'api-change': 'API Changes',
+}
+
+TYPE_ORDER = ['feature', 'enhancement', 'bugfix', 'api-change']
+
+
+def load_fragments(directory):
+    """Load all JSON fragments from a directory."""
+    entries = []
+    pattern = os.path.join(directory, '*.json')
+    for filepath in sorted(glob.glob(pattern)):
+        if os.path.basename(filepath) == '.gitkeep':
+            continue
+        with open(filepath) as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                entries.extend(data)
+            else:
+                entries.append(data)
+    return entries
+
+
+def merge_next_release(version):
+    """Merge next-release fragments into a version file."""
+    next_dir = os.path.join(CHANGES_DIR, 'next-release')
+    entries = load_fragments(next_dir)
+    if not entries:
+        print('No unreleased changes found in .changes/next-release/')
+        return False
+
+    version_file = os.path.join(CHANGES_DIR, f'{version}.json')
+    with open(version_file, 'w') as f:
+        json.dump(entries, f, indent=2)
+        f.write('\n')
+
+    for filepath in glob.glob(os.path.join(next_dir, '*.json')):
+        os.remove(filepath)
+
+    print(f'Merged {len(entries)} entries into .changes/{version}.json')
+    return True
+
+
+def render_changelog():
+    """Generate CHANGELOG.md from all version files."""
+    versions = []
+    for filepath in glob.glob(os.path.join(CHANGES_DIR, '*.json')):
+        basename = os.path.basename(filepath)
+        if basename == '.gitkeep':
+            continue
+        version = basename.replace('.json', '')
+        with open(filepath) as f:
+            entries = json.load(f)
+            if not isinstance(entries, list):
+                entries = [entries]
+        versions.append((version, entries))
+
+    def version_key(v):
+        parts = v[0].split('.')
+        return tuple(int(p) for p in parts if p.isdigit())
+
+    versions.sort(key=version_key, reverse=True)
+
+    lines = ['# Changelog\n']
+    for version, entries in versions:
+        lines.append(f'\n## {version}\n')
+
+        by_type = {}
+        for entry in entries:
+            t = entry.get('type', 'enhancement')
+            by_type.setdefault(t, []).append(entry)
+
+        for change_type in TYPE_ORDER:
+            if change_type not in by_type:
+                continue
+            header = TYPE_HEADERS.get(change_type, change_type)
+            lines.append(f'\n### {header}\n')
+            for entry in by_type[change_type]:
+                category = entry.get('category', '')
+                desc = entry.get('description', '')
+                if category:
+                    lines.append(f'* **{category}**: {desc}\n')
+                else:
+                    lines.append(f'* {desc}\n')
+
+    with open(CHANGELOG_PATH, 'w') as f:
+        f.writelines(lines)
+
+    print(f'Generated {CHANGELOG_PATH}')
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Render CHANGELOG.md')
+    parser.add_argument('--merge', metavar='VERSION',
+                        help='Merge next-release fragments into VERSION')
+    args = parser.parse_args()
+
+    if args.merge:
+        if not merge_next_release(args.merge):
+            return 1
+
+    render_changelog()
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
