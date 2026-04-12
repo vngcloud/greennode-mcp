@@ -30,7 +30,7 @@ git push -u origin feat/add-new-tool
 
 6. GitHub Actions auto-trigger:
 
-   run-tests.yml
+   run-tests.yml (working-directory: src/vks-mcp-server)
    ├── Python 3.10 × Ubuntu     ✅
    ├── Python 3.10 × macOS      ✅
    ├── Python 3.13 × Ubuntu     ✅
@@ -55,7 +55,7 @@ git pull
 ```
 
 The `bump-version` script automatically:
-- Updates version in `pyproject.toml`
+- Updates version in `src/vks-mcp-server/pyproject.toml`
 - Merges `.changes/next-release/*.json` → `.changes/0.2.0.json`
 - Clears `.changes/next-release/`
 - Regenerates `CHANGELOG.md`
@@ -70,29 +70,31 @@ git push && git push --tags
 ```
 11. GitHub Actions auto-trigger (release.yml):
 
-    Job 1: test
+    Job 1: test (working-directory: src/vks-mcp-server)
       uv sync + pytest                              ✅
 
-    Job 2: build (depends on test)
+    Job 2: build (working-directory: src/vks-mcp-server)
       Verify tag v0.2.0 == pyproject.toml 0.2.0      ✅
-      uv build → dist/vks_mcp_server-0.2.0.whl       ✅
+      uv build → dist/greennode.vks_mcp_server-0.2.0.whl ✅
       Upload artifacts                                ✅
 
-    Job 3: github-release (depends on build)
+    Job 3: github-release
       Create GitHub Release "v0.2.0"                  ✅
       Upload: whl + tar.gz                            ✅
 
-    Job 4: publish-pypi (depends on build)
+    Job 4: publish-pypi
       Publish to PyPI (requires approval)             ✅
-      → pip install vks-mcp-server==0.2.0
+      → pip install greennode.vks-mcp-server==0.2.0
 ```
 
 ### Phase 4: Users Install
 
 ```bash
-# From PyPI
-pip install vks-mcp-server
-pip install vks-mcp-server==0.2.0
+# Run directly (recommended)
+uvx greennode.vks-mcp-server@latest
+
+# Or install from PyPI
+pip install greennode.vks-mcp-server
 ```
 
 ---
@@ -102,20 +104,18 @@ pip install vks-mcp-server==0.2.0
 ### For end users
 
 ```bash
-# Install
-pip install vks-mcp-server
-
-# Configure credentials (shared with GreenNode CLI)
+# 1. Install GreenNode CLI and configure credentials
+pip install grncli
 grn configure
 
-# Run (read-only mode)
-vks-mcp-server
+# 2. Run MCP server (read-only mode)
+uvx greennode.vks-mcp-server@latest
 
-# Run with write operations enabled
-vks-mcp-server --allow-write
+# 3. Run with write operations enabled
+uvx greennode.vks-mcp-server@latest --allow-write
 
-# Run with K8s Secrets access
-vks-mcp-server --allow-sensitive-data-access
+# 4. Run with K8s Secrets access
+uvx greennode.vks-mcp-server@latest --allow-sensitive-data-access
 ```
 
 ### Configure with Claude Desktop
@@ -125,9 +125,14 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "vks": {
-      "command": "vks-mcp-server",
-      "args": ["--allow-write"]
+    "greennode.vks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "greennode.vks-mcp-server@latest",
+        "--allow-write"
+      ],
+      "autoApprove": [],
+      "disabled": false
     }
   }
 }
@@ -140,9 +145,14 @@ Add to project `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "vks": {
-      "command": "vks-mcp-server",
-      "args": ["--allow-write"]
+    "greennode.vks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "greennode.vks-mcp-server@latest",
+        "--allow-write"
+      ],
+      "autoApprove": [],
+      "disabled": false
     }
   }
 }
@@ -150,13 +160,20 @@ Add to project `.mcp.json`:
 
 ### Configure with Cursor
 
-Add to Cursor settings → MCP Servers:
+Add to Cursor Settings → MCP Servers:
 
 ```json
 {
-  "vks": {
-    "command": "vks-mcp-server",
-    "args": ["--allow-write"]
+  "mcpServers": {
+    "greennode.vks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "greennode.vks-mcp-server@latest",
+        "--allow-write"
+      ],
+      "autoApprove": [],
+      "disabled": false
+    }
   }
 }
 ```
@@ -175,7 +192,8 @@ Add to Cursor settings → MCP Servers:
 ```bash
 git checkout main
 # Fix bug
-uv run python -m pytest tests/ -v
+cd src/vks-mcp-server && uv run python -m pytest tests/ -v
+cd ../..
 ./scripts/new-change -t bugfix -c auth -d "Fix token refresh"
 git commit -am "fix(auth): fix token refresh"
 ./scripts/bump-version patch    # 0.2.0 → 0.2.1
@@ -230,7 +248,7 @@ Change types: `feature`, `bugfix`, `enhancement`, `api-change`
 
 | Secret | Purpose |
 |--------|---------|
-| `PYPI_API_TOKEN` | Publish to PyPI |
+| `PYPI_API_TOKEN` | Publish to PyPI (or use Trusted Publisher) |
 
 ### Environments
 
