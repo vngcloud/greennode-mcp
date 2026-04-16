@@ -1,13 +1,13 @@
-"""Tests for VksClient HTTP client."""
+"""Tests for GreenodeClient HTTP client."""
 from __future__ import annotations
 
 import pytest
 import respx
 import httpx
 
-from greennode.vks_mcp_server.config import load_config
-from greennode.vks_mcp_server.auth import TokenManager
-from greennode.vks_mcp_server.client import VksClient
+from greennode.greenode_mcp_server.config import load_config
+from greennode.greenode_mcp_server.auth import TokenManager
+from greennode.greenode_mcp_server.client import GreenodeClient
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
@@ -24,7 +24,7 @@ def _mock_iam(mock: respx.MockRouter) -> None:
 def client(sample_config):
     config = load_config(sample_config)
     token_manager = TokenManager(config)
-    return VksClient(config, token_manager)
+    return GreenodeClient(config, token_manager)
 
 
 @respx.mock

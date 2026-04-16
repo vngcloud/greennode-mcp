@@ -1,7 +1,5 @@
-"""Tests for server CLI arg parsing and BearerTokenMiddleware."""
+"""Tests for server.py — CLI arg parsing and BearerTokenMiddleware."""
 from __future__ import annotations
-
-import argparse
 
 import pytest
 from starlette.applications import Starlette
@@ -9,52 +7,59 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from greennode.vks_mcp_server.server import _build_parser
+from greennode.greenode_mcp_server.server import BearerTokenMiddleware, _build_parser
 
 
-def _parse_args(argv: list[str]) -> argparse.Namespace:
+def _parse(argv):
     return _build_parser().parse_args(argv)
 
 
+# --- Arg parsing ---
+
 def test_default_transport_is_stdio():
-    args = _parse_args([])
+    args = _parse([])
     assert args.transport == "stdio"
 
 
 def test_transport_http_flag():
-    args = _parse_args(["--transport", "streamable-http"])
+    args = _parse(["--transport", "streamable-http"])
     assert args.transport == "streamable-http"
 
 
 def test_default_host_and_port():
-    args = _parse_args(["--transport", "streamable-http"])
+    args = _parse([])
     assert args.host == "127.0.0.1"
     assert args.port == 8000
 
 
 def test_custom_host_and_port():
-    args = _parse_args(["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "9000"])
+    args = _parse(["--host", "0.0.0.0", "--port", "9000"])
     assert args.host == "0.0.0.0"
     assert args.port == 9000
 
 
+def test_allow_write_default_false():
+    assert _parse([]).allow_write is False
+
+
+def test_allow_write_flag():
+    assert _parse(["--allow-write"]).allow_write is True
+
+
 def test_api_key_default_is_none():
-    args = _parse_args([])
-    assert args.api_key is None
+    assert _parse([]).api_key is None
 
 
 def test_api_key_flag():
-    args = _parse_args(["--api-key", "mysecrettoken"])
-    assert args.api_key == "mysecrettoken"
+    assert _parse(["--api-key", "mysecret"]).api_key == "mysecret"
 
 
 def test_invalid_transport_raises():
     with pytest.raises(SystemExit):
-        _parse_args(["--transport", "sse"])
+        _parse(["--transport", "sse"])
 
 
-from greennode.vks_mcp_server.server import BearerTokenMiddleware  # noqa: E402
-
+# --- BearerTokenMiddleware ---
 
 async def _homepage(request):
     return PlainTextResponse("ok")
@@ -95,5 +100,4 @@ def test_bearer_middleware_returns_www_authenticate_header():
     app = BearerTokenMiddleware(_inner_app, api_key="secret123")
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/")
-    assert "WWW-Authenticate" in response.headers
-    assert response.headers["WWW-Authenticate"] == "Bearer"
+    assert response.headers.get("WWW-Authenticate") == "Bearer"

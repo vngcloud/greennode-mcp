@@ -10,7 +10,7 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) lets AI assistant
 
 | Server | Description |
 |--------|-------------|
-| [VKS MCP Server](src/vks-mcp-server/) | Manage VKS (VNG Kubernetes Service) clusters, node groups, and K8s resources |
+| [GreenNode MCP Server](src/greenode-mcp-server/) | Manage GreenNode services via OpenAPI specs + K8s resource management |
 
 ## Prerequisites
 
@@ -39,32 +39,43 @@ This creates `~/.greenode/credentials` which all MCP servers read automatically.
 
 > **Note:** All MCP servers require credentials configured via one of these methods.
 
+## Quick Start
+
+Install and run with `uvx`:
+
+```bash
+uvx greenode-mcp-server
+```
+
+### Claude Desktop / Cursor configuration
+
+```json
+{
+  "mcpServers": {
+    "greennode": {
+      "command": "uvx",
+      "args": ["greenode-mcp-server", "--allow-write"]
+    }
+  }
+}
+```
+
 ## Repository Structure
 
 ```
-greennode-mcp/
+greenode-mcp/
 ├── src/
-│   └── vks-mcp-server/              # VKS MCP Server
-│       ├── README.md                 # VKS-specific docs, tools, security
-│       ├── pyproject.toml            # Package config + dependencies
-│       ├── uv.lock                   # Lock file
-│       ├── LICENSE                   # Apache 2.0
-│       ├── NOTICE                    # Copyright notice
-│       ├── CHANGELOG.md             # Version history
-│       ├── .gitignore
-│       ├── .python-version           # Python 3.10
+│   └── greenode-mcp-server/            # GreenNode MCP Server
+│       ├── README.md                    # Server-specific docs, tools, security
+│       ├── pyproject.toml               # Package config + dependencies
+│       ├── specs/                       # Bundled OpenAPI specs (*.json)
 │       ├── greennode/
-│       │   └── vks_mcp_server/       # Source code
-│       │       ├── server.py         # Entry point
-│       │       ├── cluster_handler.py
-│       │       ├── nodegroup_handler.py
-│       │       ├── k8s_handler.py
-│       │       └── ...
-│       └── tests/                    # Test suite
-├── scripts/                          # Release scripts
-├── docs/                             # Development guide
-├── CLAUDE.md                         # AI assistant conventions
-└── pyproject.toml                    # Root tool config
+│       │   └── greenode_mcp_server/     # Source code
+│       └── tests/                       # Test suite
+├── scripts/                             # Release scripts
+├── docs/                                # Development guide
+├── CLAUDE.md                            # AI assistant conventions
+└── pyproject.toml                       # Root tool config
 ```
 
 ### Adding a new MCP server
@@ -78,7 +89,7 @@ Other product teams can add their MCP server:
 5. Add `README.md` with tools, config, security docs
 6. Update the [Available MCP Servers](#available-mcp-servers) table above
 
-See [VKS MCP Server](src/vks-mcp-server/) as reference.
+See [GreenNode MCP Server](src/greenode-mcp-server/) as reference.
 
 ## Security
 
@@ -104,21 +115,21 @@ The MCP protocol defines two standard transport mechanisms:
 |-----------|--------|
 | stdio | Supported (default) |
 | SSE (Server Sent Events) | **Removed** — deprecated per [MCP spec 2025-03-26](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility) |
-| Streamable HTTP | Supported in `vks-mcp-server` via `--transport streamable-http` |
+| Streamable HTTP | Supported in `greenode-mcp-server` via `--transport streamable-http` |
 
 All servers in this repository default to **stdio** for local AI assistant use.
 Streamable HTTP is available for self-hosted deployments. See each server's README for details.
 
 ## Getting Help
 
-- [Open an issue](https://github.com/vngcloud/greennode-mcp/issues/new/choose) — Bug reports and feature requests
-- Search [existing issues](https://github.com/vngcloud/greennode-mcp/issues) before opening a new one
+- [Open an issue](https://github.com/vngcloud/greenode-mcp/issues/new/choose) — Bug reports and feature requests
+- Search [existing issues](https://github.com/vngcloud/greenode-mcp/issues) before opening a new one
 
 ## More Resources
 
-- [VKS MCP Server](src/vks-mcp-server/) — VKS tools, configuration, and security details
+- [GreenNode MCP Server](src/greenode-mcp-server/) — Tools, configuration, and security details
 - [Development Guide](docs/DEVELOPMENT.md) — Contributing, CI/CD, release process
-- [GreenNode CLI](https://github.com/vngcloud/greennode-cli) — CLI companion tool
+- [GreenNode CLI](https://github.com/vngcloud/greenode-cli) — CLI companion tool
 - [MCP Protocol](https://modelcontextprotocol.io/) — Model Context Protocol specification
 - [VNG Cloud Console](https://hcm-3.console.vngcloud.vn/)
 

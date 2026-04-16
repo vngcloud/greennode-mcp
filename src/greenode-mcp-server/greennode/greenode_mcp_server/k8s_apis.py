@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 
-from greennode.vks_mcp_server.models import Operation
+from greennode.greenode_mcp_server.models import Operation
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class K8sApis:
 
         try:
             self.api_client = client.ApiClient(configuration)
-            self.api_client.user_agent = "greenode-mcp/vks-mcp-server"
+            self.api_client.user_agent = "greenode-mcp/greenode-mcp-server"
             self.dynamic_client = dynamic.DynamicClient(self.api_client)
         except ImportError:
             if hasattr(self, "_ca_cert_file_path") and self._ca_cert_file_path:

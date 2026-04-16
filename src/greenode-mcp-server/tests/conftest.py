@@ -1,4 +1,4 @@
-"""Pytest fixtures for VKS MCP server tests."""
+"""Pytest fixtures for GreenNode MCP Server tests."""
 
 import pytest
 

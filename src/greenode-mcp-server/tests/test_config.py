@@ -1,8 +1,9 @@
-"""Tests for vks_mcp_server.config module."""
+"""Tests for greenode_mcp_server.config module."""
+from __future__ import annotations
 
 import pytest
 
-from greennode.vks_mcp_server.config import load_config
+from greennode.greenode_mcp_server.config import load_config
 
 
 def test_load_config_with_client_credentials(sample_config):

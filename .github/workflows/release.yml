@@ -32,7 +32,7 @@ jobs:
         run: pip install uv
 
       - name: Install and test
-        working-directory: src/vks-mcp-server
+        working-directory: src/greenode-mcp-server
         run: |
           uv sync --all-extras
           uv run python -m pytest tests/ -v --tb=short
@@ -61,7 +61,7 @@ jobs:
           fi
 
       - name: Verify version matches pyproject.toml
-        working-directory: src/vks-mcp-server
+        working-directory: src/greenode-mcp-server
         run: |
           EXPECTED="${{ steps.version.outputs.version }}"
           ACTUAL=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
@@ -71,14 +71,14 @@ jobs:
           fi
 
       - name: Build package
-        working-directory: src/vks-mcp-server
+        working-directory: src/greenode-mcp-server
         run: uv build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: src/vks-mcp-server/dist/
+          path: src/greenode-mcp-server/dist/
 
   github-release:
     needs: build

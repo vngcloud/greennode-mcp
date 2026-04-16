@@ -6,8 +6,8 @@ import pytest
 import respx
 from httpx import Response
 
-from greennode.vks_mcp_server.auth import IAM_TOKEN_URL, TokenManager
-from greennode.vks_mcp_server.config import load_config
+from greennode.greenode_mcp_server.auth import IAM_TOKEN_URL, TokenManager
+from greennode.greenode_mcp_server.config import load_config
 
 IAM_SUCCESS_BODY = {
     "accessToken": "new-iam-token",

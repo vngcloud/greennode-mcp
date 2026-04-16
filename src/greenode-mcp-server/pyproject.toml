@@ -1,7 +1,7 @@
 [project]
-name = "greennode.vks-mcp-server"
-version = "0.2.0"
-description = "A GreenNode MCP server for VKS (VNG Kubernetes Service)"
+name = "greenode-mcp-server"
+version = "0.1.0"
+description = "GreenNode MCP Server — AI assistant tools for all VNG Cloud products"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -39,7 +39,7 @@ dev = [
 ]
 
 [project.scripts]
-vks-mcp-server = "greennode.vks_mcp_server.server:main"
+greenode-mcp-server = "greennode.greenode_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://github.com/vngcloud/greennode-mcp"

@@ -4,34 +4,30 @@
 
 GreenNode MCP Servers provide AI assistants (Claude, Cursor, Gemini, etc.) with tools to manage GreenNode services via the Model Context Protocol.
 
-- **Monorepo structure** — each product has its own server under `src/<product>-mcp-server/`
-- **Namespace package** — `greennode.<product>_mcp_server`
+- **Single server** — `greenode-mcp-server` covers all products via bundled OpenAPI specs
+- **Namespace package** — `greennode.greenode_mcp_server`
 
 ### Available servers
 
 | Server | Package | Tools |
 |--------|---------|-------|
-| VKS MCP Server | `greennode.vks_mcp_server` | 23 tools |
+| GreenNode MCP Server | `greennode.greenode_mcp_server` | search_api, call_api, 6 K8s tools |
 
 ## Repository structure
 
 ```
-greennode-mcp/
+greenode-mcp/
 ├── src/
-│   └── vks-mcp-server/              # Each product has its own directory
-│       ├── pyproject.toml            # Package config + dependencies
-│       ├── uv.lock                   # Lock file
-│       ├── LICENSE, NOTICE           # Legal
-│       ├── CHANGELOG.md              # Version history
-│       ├── README.md                 # Product-specific docs
-│       ├── .gitignore, .python-version
+│   └── greenode-mcp-server/
+│       ├── pyproject.toml
+│       ├── specs/                    # Bundled OpenAPI specs (*.json)
 │       ├── greennode/
-│       │   └── vks_mcp_server/       # Source code
-│       └── tests/                    # Product tests
-├── scripts/                          # Release scripts
-├── docs/                             # Development guide
-├── CLAUDE.md                         # This file
-└── pyproject.toml                    # Root tool config (ruff, pytest)
+│       │   └── greenode_mcp_server/
+│       └── tests/
+├── scripts/
+├── docs/
+├── CLAUDE.md
+└── pyproject.toml
 ```
 
 ## Code conventions
@@ -40,9 +36,9 @@ greennode-mcp/
 - Async/await throughout — all handlers and client methods are async
 - Use `from __future__ import annotations` in all files
 - Follow existing handler pattern: class with `__init__` registering tools via `self.mcp.tool()`
-- Package namespace: `greennode.<product>_mcp_server`
-- Imports: `from greennode.vks_mcp_server.config import ...` (not `vks_mcp_server.config`)
-- Mock paths in tests must also use `greennode.` prefix: `patch("greennode.vks_mcp_server.module.Class")`
+- Package namespace: `greennode.greenode_mcp_server`
+- Imports: `from greennode.greenode_mcp_server.config import ...` (not `greenode_mcp_server.config`)
+- Mock paths in tests must also use `greennode.` prefix: `patch("greennode.greenode_mcp_server.module.Class")`
 
 ## VNG Cloud API quirks
 
@@ -52,14 +48,18 @@ greennode-mcp/
 
 ## Adding a new tool (to existing server)
 
-1. Choose the appropriate handler in `src/vks-mcp-server/greennode/vks_mcp_server/`
+1. Choose the appropriate handler in `src/greenode-mcp-server/greennode/greenode_mcp_server/`
 2. Define async method with docstring (used as tool description for AI)
 3. Register in handler's `__init__`: `self.mcp.tool(name="tool_name")(self.method)`
 4. Add `validate_id()` for any ID args used in URL construction
 5. Check `self.allow_write` for mutating operations
-6. Add tests in `src/vks-mcp-server/tests/`
+6. Add tests in `src/greenode-mcp-server/tests/`
 
 ## Adding a new MCP server (new product)
+
+The greenode-mcp-server now covers all products via bundled OpenAPI specs, so adding a new product typically means adding a new spec file to `src/greenode-mcp-server/specs/` rather than creating a separate server.
+
+If a truly separate server is needed:
 
 1. Create `src/<product>-mcp-server/` directory
 2. Add per-product files: `pyproject.toml`, `uv.lock`, `LICENSE`, `NOTICE`, `CHANGELOG.md`, `.gitignore`, `.python-version`, `README.md`
@@ -68,7 +68,7 @@ greennode-mcp/
 5. Register entry point in `pyproject.toml`: `<product>-mcp-server = "greennode.<product>_mcp_server.server:main"`
 6. Update root `README.md` available servers table
 
-See `src/vks-mcp-server/` as reference.
+See `src/greenode-mcp-server/` as reference.
 
 ## Security rules
 
@@ -87,13 +87,12 @@ See `src/vks-mcp-server/` as reference.
 ## Testing
 
 ```bash
-# From product directory
-cd src/vks-mcp-server
+cd src/greenode-mcp-server
 uv sync --all-extras
 uv run python -m pytest tests/ -v
 ```
 
-- 44 tests for VKS MCP Server
+- 65 tests for GreenNode MCP Server
 - Uses `respx` for mocking async HTTP calls
 - Uses `pytest-asyncio` for async test support
 
@@ -113,36 +112,35 @@ uv run python -m pytest tests/ -v
 
 **Docs to check:**
 
-- `src/vks-mcp-server/README.md` — Tool list, config, security, prerequisites
-- `src/vks-mcp-server/CHANGELOG.md` — Version history
+- `src/greenode-mcp-server/README.md` — Tool list, config, security, prerequisites
+- `src/greenode-mcp-server/CHANGELOG.md` — Version history
 - `README.md` (root) — Available servers, prerequisites, security
 - `CLAUDE.md` — Conventions, rules, key files, security rules
 - `docs/DEVELOPMENT.md` — Dev workflow, deployment, env vars
 - `./scripts/new-change` — Add changelog fragment
 
 **Examples:**
-- Added/removed a tool → update VKS README tool table + server.py SERVER_INSTRUCTIONS + CLAUDE.md tool count
-- Changed auth/credentials flow → update VKS README config section + root README prerequisites + CLAUDE.md security rules
+- Added/removed a tool → update README tool table + server.py SERVER_INSTRUCTIONS + CLAUDE.md tool count
+- Changed auth/credentials flow → update README config section + root README prerequisites + CLAUDE.md security rules
 - Changed project structure → update root README structure + CLAUDE.md repository structure
 - Removed env var support → update all docs that mention env vars
 
 Code without docs is not done.
 
-## Key files (VKS MCP Server)
+## Key files (GreenNode MCP Server)
 
 | File | Purpose |
 |------|---------|
-| `greennode/vks_mcp_server/server.py` | FastMCP entry point, handler registration, CLI flags (`--allow-write`, `--transport`, `--host`, `--port`, `--api-key`) |
-| `greennode/vks_mcp_server/config.py` | Config loading, env var overrides, REGIONS dict |
-| `greennode/vks_mcp_server/auth.py` | TokenManager — async OAuth2 with auto-refresh |
-| `greennode/vks_mcp_server/client.py` | VksClient — async HTTP with retry + token refresh |
-| `greennode/vks_mcp_server/validators.py` | ID format validation |
-| `greennode/vks_mcp_server/cluster_handler.py` | 10 cluster tools |
-| `greennode/vks_mcp_server/nodegroup_handler.py` | 7 nodegroup tools |
-| `greennode/vks_mcp_server/k8s_handler.py` | 6 K8s tools |
-| `greennode/vks_mcp_server/k8s_apis.py` | K8s API client wrapper |
-| `greennode/vks_mcp_server/k8s_client_cache.py` | TTL cache for K8s clients (840s) |
-| `greennode/vks_mcp_server/models.py` | Pydantic models + markdown formatters |
+| `greennode/greenode_mcp_server/server.py` | FastMCP entry point, tool registration, CLI flags |
+| `greennode/greenode_mcp_server/api_index.py` | Spec loader, in-memory index, keyword search |
+| `greennode/greenode_mcp_server/api_caller.py` | call_api tool — write guard, auth injection, response formatting |
+| `greennode/greenode_mcp_server/config.py` | Config loading, REGIONS dict |
+| `greennode/greenode_mcp_server/auth.py` | TokenManager — async OAuth2 with auto-refresh |
+| `greennode/greenode_mcp_server/client.py` | GreenodeClient — used by K8s handler for kubeconfig fetch |
+| `greennode/greenode_mcp_server/k8s_handler.py` | 6 K8s tools |
+| `greennode/greenode_mcp_server/k8s_apis.py` | K8s API client wrapper |
+| `greennode/greenode_mcp_server/k8s_client_cache.py` | TTL cache for K8s clients |
+| `greennode/greenode_mcp_server/models.py` | Pydantic models for K8s responses |
 
 ## Relationship with greenode-cli
 
