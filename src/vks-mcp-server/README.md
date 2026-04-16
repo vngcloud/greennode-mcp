@@ -30,16 +30,28 @@ MCP (Model Context Protocol) Server for VKS (VNG Kubernetes Service). Provides A
 
 ## Quickstart
 
-### 1. Install GreenNode CLI and configure credentials
+### 1. Configure credentials
 
-The MCP server reads credentials from `~/.greenode/credentials`, which is created by the GreenNode CLI:
+The MCP server supports two ways to provide credentials:
+
+**Option A: Environment variables**
+
+```bash
+export GRN_ACCESS_KEY_ID=your-client-id
+export GRN_SECRET_ACCESS_KEY=your-client-secret
+export GRN_DEFAULT_REGION=HCM-3
+```
+
+**Option B: Credentials file (via GreenNode CLI)**
 
 ```bash
 pip install grncli
 grn configure
 ```
 
-> **Note:** The MCP server cannot run without credentials. `grn configure` is the only way to set them up.
+This creates `~/.greenode/credentials` which the MCP server reads automatically.
+
+> **Note:** Environment variables take priority over the credentials file. The server cannot run without credentials configured via one of these methods.
 
 ### 2. Run the server
 
@@ -164,6 +176,54 @@ Auto-approve read-only tools so AI doesn't ask confirmation for every list/get:
 
 > **Tip:** Only auto-approve **read-only** tools. Keep write tools (create, update, delete) requiring manual approval for safety.
 
+## Transport
+
+GreenNode VKS MCP Server supports two transport modes:
+
+| Mode | Flag | Use case |
+|------|------|----------|
+| stdio (default) | *(none)* | Local AI assistants — Claude Desktop, Cursor, VS Code |
+| Streamable HTTP | `--transport streamable-http` | Self-hosted server, team sharing, container deployment |
+
+> **SSE support removed:** Server Sent Events (SSE) was removed per [MCP spec 2025-03-26](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility). If you need SSE, use a previous version.
+
+### Streamable HTTP (self-hosted)
+
+Run as an HTTP server:
+
+```bash
+uvx vks-mcp-server \
+  --transport streamable-http \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --api-key your-secret-token
+```
+
+Configure your AI assistant to connect via HTTP:
+
+```json
+{
+  "mcpServers": {
+    "greennode.vks": {
+      "type": "http",
+      "url": "http://your-server:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer your-secret-token"
+      }
+    }
+  }
+}
+```
+
+**Security notes:**
+- Always set `--api-key` when exposing the server on a network. Omitting it runs unauthenticated.
+- `--api-key` can also be set via the `GRN_MCP_API_KEY` environment variable (recommended for production).
+- For TLS termination, put a reverse proxy (nginx, Caddy) in front of the server.
+
+### Remote hosted (planned)
+
+A `grn-mcp-proxy` tool is planned for when GreenNode hosts a central MCP server. It will run locally, handle IAM authentication, and forward requests — similar to AWS's `mcp-proxy-for-aws` pattern.
+
 ## Configuration
 
 ### Arguments
@@ -179,12 +239,16 @@ Auto-approve read-only tools so AI doesn't ask confirmation for every list/get:
 
 | Variable | Description |
 |----------|-------------|
+| `GRN_ACCESS_KEY_ID` | Client ID (overrides credentials file) |
+| `GRN_SECRET_ACCESS_KEY` | Client Secret (overrides credentials file) |
 | `GRN_DEFAULT_REGION` | Default region (default: HCM-3) |
 | `GRN_PROFILE` | Profile name from config file (default: "default") |
 
+Credential resolution order: environment variables take priority over the credentials file.
+
 ### Credential Files
 
-Created by `grn configure` (shared with [GreenNode CLI](https://github.com/vngcloud/greennode-cli)). Do not edit manually:
+Created by `grn configure` (shared with [GreenNode CLI](https://github.com/vngcloud/greenode-cli)). Do not edit manually:
 
 ```ini
 # ~/.greenode/credentials
