@@ -7,3 +7,5 @@ build/
 .venv/
 .eggs/
 *.whl
+.superpowers/
+docs/superpowers/
