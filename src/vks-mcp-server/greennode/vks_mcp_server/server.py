@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -58,10 +59,8 @@ def create_server() -> FastMCP:
     return FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
 
 
-def main() -> None:
-    """Load config, create handlers, and run the MCP server."""
-    global mcp
-
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="GreenNode MCP Server -- manage VNG Kubernetes Service via MCP"
     )
@@ -77,7 +76,36 @@ def main() -> None:
         default=False,
         help="Enable access to sensitive data (required for reading Kubernetes Secrets)",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport mode: stdio (default) or streamable-http",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host for HTTP transport (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Bind port for HTTP transport (default: 8000)",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("GRN_MCP_API_KEY"),
+        help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
+    )
+    return parser
+
+
+def main() -> None:
+    """Load config, create handlers, and run the MCP server."""
+    global mcp
+
+    args = _build_parser().parse_args()
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)

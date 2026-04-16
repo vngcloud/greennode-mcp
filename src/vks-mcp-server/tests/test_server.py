@@ -5,17 +5,11 @@ import argparse
 
 import pytest
 
+from greennode.vks_mcp_server.server import _build_parser
+
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
-    """Re-create the argparse setup from server.py for testing."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--allow-write", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--allow-sensitive-data-access", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--api-key", default=None)
-    return parser.parse_args(argv)
+    return _build_parser().parse_args(argv)
 
 
 def test_default_transport_is_stdio():
