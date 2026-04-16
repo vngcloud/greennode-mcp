@@ -1,5 +1,0 @@
-{
-  "type": "feature",
-  "category": "vks-mcp-server",
-  "description": "Add Streamable HTTP transport mode with bearer token auth (--transport, --host, --port, --api-key / GRN_MCP_API_KEY)"
-}
