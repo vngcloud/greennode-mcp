@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-testpaths = ["src/vks-mcp-server/tests"]
+testpaths = ["src/greenode-mcp-server/tests"]
 asyncio_mode = "auto"
 
 [tool.ruff]

@@ -9,11 +9,11 @@ import yaml
 from pydantic import Field
 from typing import Any, Dict, Optional
 
-from greennode.vks_mcp_server.client import VksClient
-from greennode.vks_mcp_server.config import VksConfig
-from greennode.vks_mcp_server.k8s_apis import K8sApis
-from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
-from greennode.vks_mcp_server.models import (
+from greennode.greenode_mcp_server.client import GreenodeClient
+from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.k8s_apis import K8sApis
+from greennode.greenode_mcp_server.k8s_client_cache import K8sClientCache
+from greennode.greenode_mcp_server.models import (
     ApiVersionsData,
     ApplyYamlData,
     EventItem,
@@ -40,7 +40,7 @@ class K8sHandler:
         self,
         mcp,
         config: VksConfig,
-        vks_client: VksClient,
+        vks_client: GreenodeClient,
         allow_write: bool = False,
         allow_sensitive_data_access: bool = False,
     ):
@@ -49,7 +49,7 @@ class K8sHandler:
         Args:
             mcp: The MCP server instance
             config: VKS configuration
-            vks_client: VKS HTTP client
+            vks_client: GreenNode HTTP client
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
         """

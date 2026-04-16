@@ -3,10 +3,10 @@ import httpx
 import respx
 from unittest.mock import patch, MagicMock
 
-from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
-from greennode.vks_mcp_server.config import load_config
-from greennode.vks_mcp_server.auth import TokenManager
-from greennode.vks_mcp_server.client import VksClient
+from greennode.greenode_mcp_server.k8s_client_cache import K8sClientCache
+from greennode.greenode_mcp_server.config import load_config
+from greennode.greenode_mcp_server.auth import TokenManager
+from greennode.greenode_mcp_server.client import GreenodeClient
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
@@ -48,9 +48,9 @@ async def test_get_client_fetches_kubeconfig(sample_config):
     )
     config = load_config(sample_config)
     tm = TokenManager(config)
-    vks_client = VksClient(config, tm)
+    vks_client = GreenodeClient(config, tm)
     cache = K8sClientCache(vks_client)
-    with patch("greennode.vks_mcp_server.k8s_client_cache.K8sApis") as MockK8sApis:
+    with patch("greennode.greenode_mcp_server.k8s_client_cache.K8sApis") as MockK8sApis:
         mock_instance = MagicMock()
         MockK8sApis.from_api_client.return_value = mock_instance
         client = await cache.get_client("k8s-123")
@@ -67,9 +67,9 @@ async def test_get_client_uses_cache(sample_config):
     )
     config = load_config(sample_config)
     tm = TokenManager(config)
-    vks_client = VksClient(config, tm)
+    vks_client = GreenodeClient(config, tm)
     cache = K8sClientCache(vks_client)
-    with patch("greennode.vks_mcp_server.k8s_client_cache.K8sApis") as MockK8sApis:
+    with patch("greennode.greenode_mcp_server.k8s_client_cache.K8sApis") as MockK8sApis:
         mock_instance = MagicMock()
         MockK8sApis.from_api_client.return_value = mock_instance
         await cache.get_client("k8s-123")

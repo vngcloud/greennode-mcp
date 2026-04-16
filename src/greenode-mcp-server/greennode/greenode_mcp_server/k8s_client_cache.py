@@ -8,8 +8,8 @@ from __future__ import annotations
 import yaml
 from cachetools import TTLCache
 
-from greennode.vks_mcp_server.client import VksClient
-from greennode.vks_mcp_server.k8s_apis import K8sApis
+from greennode.greenode_mcp_server.client import GreenodeClient
+from greennode.greenode_mcp_server.k8s_apis import K8sApis
 
 # 14 minutes TTL — kubeconfig tokens typically last 15m
 CLIENT_TTL = 840
@@ -18,7 +18,7 @@ CLIENT_TTL = 840
 class K8sClientCache:
     """Cache for Kubernetes API clients keyed by VKS cluster ID."""
 
-    def __init__(self, vks_client: VksClient) -> None:
+    def __init__(self, vks_client: GreenodeClient) -> None:
         self._vks_client = vks_client
         self._cache = TTLCache(maxsize=100, ttl=CLIENT_TTL)
 
