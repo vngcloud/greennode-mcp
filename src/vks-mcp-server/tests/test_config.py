@@ -1,7 +1,6 @@
 """Tests for vks_mcp_server.config module."""
 
 import pytest
-from pathlib import Path
 
 from greennode.vks_mcp_server.config import load_config
 
