@@ -95,7 +95,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--api-key",
-        default=os.environ.get("GRN_MCP_API_KEY"),
+        default=None,
         help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
     )
     return parser
@@ -106,6 +106,7 @@ def main() -> None:
     global mcp
 
     args = _build_parser().parse_args()
+    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")  # noqa: F841
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
