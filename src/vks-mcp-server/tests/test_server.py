@@ -4,10 +4,6 @@ from __future__ import annotations
 import argparse
 
 import pytest
-from starlette.testclient import TestClient
-from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
-from starlette.routing import Route
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
