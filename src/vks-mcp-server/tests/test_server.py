@@ -4,6 +4,10 @@ from __future__ import annotations
 import argparse
 
 import pytest
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 from greennode.vks_mcp_server.server import _build_parser
 
@@ -47,3 +51,49 @@ def test_api_key_flag():
 def test_invalid_transport_raises():
     with pytest.raises(SystemExit):
         _parse_args(["--transport", "sse"])
+
+
+from greennode.vks_mcp_server.server import BearerTokenMiddleware  # noqa: E402
+
+
+async def _homepage(request):
+    return PlainTextResponse("ok")
+
+
+_inner_app = Starlette(routes=[Route("/", _homepage)])
+
+
+def test_bearer_middleware_allows_valid_token():
+    app = BearerTokenMiddleware(_inner_app, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/", headers={"Authorization": "Bearer secret123"})
+    assert response.status_code == 200
+
+
+def test_bearer_middleware_rejects_wrong_token():
+    app = BearerTokenMiddleware(_inner_app, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/", headers={"Authorization": "Bearer wrongtoken"})
+    assert response.status_code == 401
+
+
+def test_bearer_middleware_rejects_missing_header():
+    app = BearerTokenMiddleware(_inner_app, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/")
+    assert response.status_code == 401
+
+
+def test_bearer_middleware_rejects_malformed_header():
+    app = BearerTokenMiddleware(_inner_app, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/", headers={"Authorization": "Basic secret123"})
+    assert response.status_code == 401
+
+
+def test_bearer_middleware_returns_www_authenticate_header():
+    app = BearerTokenMiddleware(_inner_app, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/")
+    assert "WWW-Authenticate" in response.headers
+    assert response.headers["WWW-Authenticate"] == "Bearer"

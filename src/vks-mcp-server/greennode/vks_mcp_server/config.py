@@ -58,37 +58,43 @@ def load_config(config_dir: Path) -> VksConfig:
     The profile is selected by the ``GRN_PROFILE`` environment variable
     (default: ``"default"``).
 
-    Environment variable overrides:
+    Environment variable overrides (highest priority):
+    - ``GRN_ACCESS_KEY_ID`` overrides ``client_id`` from credentials file
+    - ``GRN_SECRET_ACCESS_KEY`` overrides ``client_secret`` from credentials file
     - ``GRN_DEFAULT_REGION`` overrides ``region`` from config file
 
-    Credentials are always read from the credentials file (no env var
-    override for security reasons).
-
-    Raises ``FileNotFoundError`` if the credentials file is missing and
-    ``ValueError`` if required fields are absent.
+    Raises ``FileNotFoundError`` if the credentials file is missing (and
+    no env var overrides are set) and ``ValueError`` if required fields
+    are absent.
     """
     profile = os.environ.get("GRN_PROFILE", "default")
 
     credentials_path = config_dir / "credentials"
     config_path = config_dir / "config"
 
-    # --- Credentials (file only, no env var for security) ---
-    if not credentials_path.exists():
-        raise FileNotFoundError(
-            f"Credentials file not found: {credentials_path}"
-            ". Run 'grn configure' to set up authentication credentials."
-        )
+    # --- Credentials (env vars override file) ---
+    client_id = os.environ.get("GRN_ACCESS_KEY_ID")
+    client_secret = os.environ.get("GRN_SECRET_ACCESS_KEY")
 
-    cred_parser = configparser.ConfigParser()
-    cred_parser.read(credentials_path)
+    if not (client_id and client_secret):
+        if not credentials_path.exists():
+            raise FileNotFoundError(
+                f"Credentials file not found: {credentials_path}"
+                ". Run 'grn configure' to set up authentication credentials."
+            )
 
-    if not cred_parser.has_section(profile):
-        raise ValueError(
-            f"Credentials file missing section [{profile}]: {credentials_path}"
-        )
+        cred_parser = configparser.ConfigParser()
+        cred_parser.read(credentials_path)
 
-    client_id = cred_parser.get(profile, "client_id", fallback=None)
-    client_secret = cred_parser.get(profile, "client_secret", fallback=None)
+        if not cred_parser.has_section(profile):
+            raise ValueError(
+                f"Credentials file missing section [{profile}]: {credentials_path}"
+            )
+
+        if not client_id:
+            client_id = cred_parser.get(profile, "client_id", fallback=None)
+        if not client_secret:
+            client_secret = cred_parser.get(profile, "client_secret", fallback=None)
 
     if not client_id or not client_secret:
         raise ValueError(
