@@ -16,14 +16,28 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) lets AI assistant
 
 - Python 3.10 or later
 - [uv](https://docs.astral.sh/uv/) package manager (recommended)
-- [GreenNode CLI](https://github.com/vngcloud/greennode-cli) (`grncli`) — **required** for credential setup
+- GreenNode credentials — via environment variables or credentials file
+
+### Credential setup
+
+**Option A: Environment variables**
+
+```bash
+export GRN_ACCESS_KEY_ID=your-client-id
+export GRN_SECRET_ACCESS_KEY=your-client-secret
+export GRN_DEFAULT_REGION=HCM-3
+```
+
+**Option B: Credentials file (via GreenNode CLI)**
 
 ```bash
 pip install grncli
 grn configure
 ```
 
-> **Note:** All MCP servers read credentials from `~/.greenode/credentials`, which is created by `grn configure`. The servers cannot run without this file.
+This creates `~/.greenode/credentials` which all MCP servers read automatically. Environment variables take priority over the credentials file.
+
+> **Note:** All MCP servers require credentials configured via one of these methods.
 
 ## Repository Structure
 
@@ -76,6 +90,24 @@ All GreenNode MCP servers share these security principles:
 - **Input validation** — All resource IDs validated to prevent path traversal
 - **Token handling** — In memory only, never written to disk or logged
 - **Request safety** — 30s timeout, retry with exponential backoff
+
+## Transport Mechanisms
+
+The MCP protocol defines two standard transport mechanisms:
+
+- **stdio** — communication over standard in/out. Default for all servers.
+- **Streamable HTTP** — HTTP-based transport enabling remote hosting.
+
+### Policy
+
+| Transport | Status |
+|-----------|--------|
+| stdio | Supported (default) |
+| SSE (Server Sent Events) | **Removed** — deprecated per [MCP spec 2025-03-26](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility) |
+| Streamable HTTP | Supported in `vks-mcp-server` via `--transport streamable-http` |
+
+All servers in this repository default to **stdio** for local AI assistant use.
+Streamable HTTP is available for self-hosted deployments. See each server's README for details.
 
 ## Getting Help
 

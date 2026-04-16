@@ -369,6 +369,10 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "respx" },
     { name = "ruff" },
+    { name = "uvicorn" },
+]
+http = [
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -383,8 +387,10 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "uvicorn", marker = "extra == 'dev'", specifier = ">=0.30.0" },
+    { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.30.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["http", "dev"]
 
 [[package]]
 name = "h11"

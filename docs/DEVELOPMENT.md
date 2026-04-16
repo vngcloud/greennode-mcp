@@ -182,8 +182,12 @@ Add to Cursor Settings → MCP Servers:
 
 | Variable | Description |
 |----------|-------------|
+| `GRN_ACCESS_KEY_ID` | Client ID (overrides credentials file) |
+| `GRN_SECRET_ACCESS_KEY` | Client Secret (overrides credentials file) |
 | `GRN_PROFILE` | Select profile (default: "default") |
 | `GRN_DEFAULT_REGION` | Override region (default: HCM-3) |
+
+Credential resolution order: environment variables (`GRN_ACCESS_KEY_ID`, `GRN_SECRET_ACCESS_KEY`) take priority over the credentials file (`~/.greenode/credentials`).
 
 ---
 

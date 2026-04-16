@@ -75,9 +75,14 @@ See `src/vks-mcp-server/` as reference.
 - **Input validation**: All resource IDs validated via `validators.validate_id()` before URL construction — prevents path traversal
 - **Write guard**: Mutating operations must check `self.allow_write` flag
 - **Sensitive data guard**: K8s Secret reads must check `self.allow_sensitive_data_access`
+- **Credential env vars supported**: `GRN_ACCESS_KEY_ID`/`GRN_SECRET_ACCESS_KEY` override credentials file (highest priority)
 - **Tokens in memory only**: Never written to disk or logged
 - **Credentials not logged**: Error messages and debug logs never include tokens or secrets
 - **Timeout**: All HTTP requests have 30s timeout
+- **HTTP transport auth**: When `--transport streamable-http` is used, always set `--api-key` or `GRN_MCP_API_KEY` to protect the endpoint with bearer token auth
+- **Unauthenticated HTTP warning**: If `--api-key` is not set in HTTP mode, server prints a warning to stderr and runs unauthenticated — only safe in trusted networks
+- **Token comparison**: Bearer token uses `hmac.compare_digest` (constant-time) to prevent timing attacks
+- **TLS**: Not handled by the server — use a reverse proxy for HTTPS in production
 
 ## Testing
 
@@ -127,7 +132,7 @@ Code without docs is not done.
 
 | File | Purpose |
 |------|---------|
-| `greennode/vks_mcp_server/server.py` | FastMCP entry point, handler registration, CLI flags |
+| `greennode/vks_mcp_server/server.py` | FastMCP entry point, handler registration, CLI flags (`--allow-write`, `--transport`, `--host`, `--port`, `--api-key`) |
 | `greennode/vks_mcp_server/config.py` | Config loading, env var overrides, REGIONS dict |
 | `greennode/vks_mcp_server/auth.py` | TokenManager — async OAuth2 with auto-refresh |
 | `greennode/vks_mcp_server/client.py` | VksClient — async HTTP with retry + token refresh |
@@ -145,7 +150,7 @@ Both projects share:
 - Same config files (`~/.greenode/credentials`, `~/.greenode/config`)
 - Same REGIONS dict (HCM-3, HAN endpoints)
 - Same IAM auth flow (camelCase fields)
-- Same env var names (`GRN_PROFILE`, `GRN_DEFAULT_REGION`, etc.)
+- Same env var names (`GRN_ACCESS_KEY_ID`, `GRN_SECRET_ACCESS_KEY`, `GRN_PROFILE`, `GRN_DEFAULT_REGION`, etc.)
 
 Key differences:
 - greenode-mcp is **async**, greenode-cli is **sync**

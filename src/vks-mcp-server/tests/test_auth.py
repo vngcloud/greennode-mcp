@@ -1,11 +1,9 @@
 """Tests for the auth module (TokenManager)."""
 from __future__ import annotations
 
-import time
 
 import pytest
 import respx
-import httpx
 from httpx import Response
 
 from greennode.vks_mcp_server.auth import IAM_TOKEN_URL, TokenManager

@@ -55,8 +55,6 @@ class VksClient:
         endpoints = self._config.get_endpoints(region)
         url = f"{endpoints.vks}{path}"
 
-        last_error: Exception | None = None
-
         for attempt in range(MAX_RETRIES + 1):
             token = await self._token_manager.get_token()
             headers = {"Authorization": f"Bearer {token}"}
@@ -71,7 +69,6 @@ class VksClient:
                         json=json,
                     )
             except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as exc:
-                last_error = exc
                 if attempt < MAX_RETRIES:
                     delay = RETRY_BASE_DELAY * (2 ** attempt)
                     LOG.debug(

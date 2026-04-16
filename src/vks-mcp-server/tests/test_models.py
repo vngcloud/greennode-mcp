@@ -1,7 +1,6 @@
 """Tests for response formatting models."""
 from __future__ import annotations
 
-import pytest
 
 from greennode.vks_mcp_server.models import (
     format_cluster_table,

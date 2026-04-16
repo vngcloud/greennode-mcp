@@ -1,7 +1,6 @@
 import pytest
 import httpx
 import respx
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
