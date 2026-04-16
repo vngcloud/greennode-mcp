@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import hmac
 import os
+import sys
 from pathlib import Path
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from mcp.server.fastmcp import FastMCP
 
@@ -52,6 +59,24 @@ By default the server runs in **read-only** mode. Use the `--allow-write` flag t
 """
 
 mcp = None
+
+
+class BearerTokenMiddleware(BaseHTTPMiddleware):
+    """Validate Authorization: Bearer <token> on every HTTP request."""
+
+    def __init__(self, app, api_key: str) -> None:
+        super().__init__(app)
+        self._expected = f"Bearer {api_key}".encode()
+
+    async def dispatch(self, request: Request, call_next):
+        auth = request.headers.get("Authorization", "").encode()
+        if not hmac.compare_digest(auth, self._expected):
+            return Response(
+                "Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return await call_next(request)
 
 
 def create_server() -> FastMCP:
@@ -106,7 +131,7 @@ def main() -> None:
     global mcp
 
     args = _build_parser().parse_args()
-    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")  # noqa: F841
+    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
@@ -122,7 +147,49 @@ def main() -> None:
         allow_sensitive_data_access=args.allow_sensitive_data_access,
     )
 
-    mcp.run()
+    if args.transport == "stdio":
+        mcp.run()
+    else:
+        # streamable-http mode
+        import uvicorn  # optional dep; only required for streamable-http mode
+
+        if not api_key:
+            print(
+                "Warning: --api-key not set. Server is unauthenticated. "
+                "Only use in a trusted network.",
+                file=sys.stderr,
+            )
+
+        # Configure host/port on the FastMCP settings
+        # mcp.settings.host is read by TransportSecuritySettings for allowed-host checks.
+        # Binding is controlled by uvicorn.Config below, not mcp.settings.
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+
+        # Allow all hosts when binding to non-loopback (auth handled by api-key)
+        loopback = {"127.0.0.1", "localhost", "::1"}
+        if args.host not in loopback:
+            from mcp.server.fastmcp.server import TransportSecuritySettings
+
+            mcp.settings.transport_security = TransportSecuritySettings(
+                enable_dns_rebinding_protection=False,
+            )
+
+        starlette_app = mcp.streamable_http_app()
+
+        # add_middleware is safe here: streamable_http_app() returns an unstarted Starlette
+        # app (middleware_stack is None). Must be called before uvicorn starts serving.
+        if api_key:
+            starlette_app.add_middleware(BearerTokenMiddleware, api_key=api_key)
+
+        uv_config = uvicorn.Config(
+            starlette_app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+        )
+        server = uvicorn.Server(uv_config)
+        asyncio.run(server.serve())
 
 
 if __name__ == "__main__":
