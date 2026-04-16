@@ -103,7 +103,7 @@ class ClusterDetail(BaseModel):
     poc: str = Field("", description="Whether this is a PoC cluster")
     auto_renewal: str = Field("", description="Auto renewal enabled")
     auto_upgrade_config: Optional[dict] = Field(None, description="Auto-upgrade configuration")
-    fleet: str = Field("", description="Fleet info")
+    fleet: dict | None = Field(None, description="Fleet info")
     location: str = Field("", description="Location")
     created_at: str = Field("", description="Creation timestamp")
     updated_at: str = Field("", description="Last update timestamp")
@@ -137,7 +137,7 @@ class ClusterDetail(BaseModel):
             poc=str(c.get("poc", "")),
             auto_renewal=str(c.get("autoRenewal", "")),
             auto_upgrade_config=c.get("autoUpgradeConfig", None),
-            fleet=str(c.get("fleet", "")),
+            fleet=c.get("fleet"),
             location=str(c.get("location", "")),
             created_at=c.get("createdAt", ""),
             updated_at=c.get("updatedAt", ""),

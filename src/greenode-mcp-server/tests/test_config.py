@@ -1,4 +1,5 @@
-"""Tests for vks_mcp_server.config module."""
+"""Tests for greenode_mcp_server.config module."""
+from __future__ import annotations
 
 import pytest
 

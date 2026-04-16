@@ -1,4 +1,4 @@
-"""HTTP client for VKS API with retry on 5xx/timeout and auto-refresh on 401."""
+"""HTTP client for VNG Cloud APIs with retry and token refresh."""
 from __future__ import annotations
 
 import asyncio
@@ -19,8 +19,8 @@ RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 DEFAULT_TIMEOUT = 30  # seconds
 
 
-class VksClient:
-    """Thin async HTTP client for the VKS API."""
+class GreenodeClient:
+    """Thin async HTTP client for VNG Cloud APIs."""
 
     def __init__(self, config: VksConfig, token_manager: TokenManager) -> None:
         self._config = config
@@ -36,7 +36,7 @@ class VksClient:
         raw_response: bool = False,
         _retried_auth: bool = False,
     ) -> Any:
-        """Send an HTTP request to the VKS API.
+        """Send an HTTP request to a VNG Cloud API.
 
         Retries up to ``MAX_RETRIES`` times on 5xx errors and network
         timeouts with exponential backoff (1s, 2s, 4s).  Automatically
