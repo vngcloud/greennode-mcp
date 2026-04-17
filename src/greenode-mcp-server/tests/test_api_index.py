@@ -135,6 +135,14 @@ def test_search_by_path_keyword(tmp_path, monkeypatch):
     assert len(results) >= 1
 
 
+def test_search_by_product_name(tmp_path, monkeypatch):
+    import greennode.greenode_mcp_server.api_index as m
+    _write_spec(m.SPECS_DIR, "vks", MINIMAL_SPEC)
+    results = search("vks")
+    assert len(results) >= 1
+    assert all(e.product == "vks" for e in results)
+
+
 def test_search_filters_by_product(tmp_path, monkeypatch):
     import greennode.greenode_mcp_server.api_index as m
     _write_spec(m.SPECS_DIR, "vks", MINIMAL_SPEC)

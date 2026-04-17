@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+### Fixes
+* `search_api` now matches product name (e.g. query "vks" returns VKS endpoints)
+
 ## 0.3.1
 
 ### Fixes

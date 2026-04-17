@@ -132,7 +132,7 @@ def search(query: str, product: str | None = None, max_results: int = 5) -> list
     for entry in get_index():
         if product and entry.product != product:
             continue
-        searchable = f"{entry.method} {entry.path} {entry.summary} {entry.description}".lower()
+        searchable = f"{entry.product} {entry.method} {entry.path} {entry.summary} {entry.description}".lower()
         if all(term in searchable for term in terms):
             results.append(entry)
     return results[:max_results]
