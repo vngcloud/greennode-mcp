@@ -1,6 +1,6 @@
 [project]
 name = "greenode-mcp-server"
-version = "0.1.0"
+version = "0.3.0"
 description = "GreenNode MCP Server — AI assistant tools for all VNG Cloud products"
 readme = "README.md"
 requires-python = ">=3.10"
