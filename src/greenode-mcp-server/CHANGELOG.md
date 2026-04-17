@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+### Fixes
+* Add README.md, LICENSE, and NOTICE to package (fixes missing PyPI description)
+
 ## 0.3.0
 
 ### Features
