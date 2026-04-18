@@ -283,13 +283,19 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl get' commands.
 
         ## Response Information
-        The response includes a summary of each resource with name, namespace, creation timestamp,
-        labels, and annotations.
+        Each item includes name, namespace, creation timestamp, labels, annotations,
+        and `status_summary` — a compact per-kind status string (e.g. "Running
+        (ready 1/1, restarts 0)" for Pods, "3/3 ready" for Deployments).
 
         ## Usage Tips
-        - Use the list_api_versions tool first to find available API versions
+        - Leave `namespace` empty to list across all namespaces (response shows
+          `namespace: "all namespaces"`). Pass a specific namespace to scope.
         - For non-namespaced resources (like Nodes), the namespace parameter is ignored
         - Combine label and field selectors for more precise filtering
+        - **Finding unhealthy Pods:** `status.phase != Running` MISSES
+          CrashLoopBackOff (those pods keep `phase=Running`). To catch them,
+          list all pods and inspect `status_summary` (shows restart count)
+          or check container statuses via manage_k8s_resource.
         - Results are summarized to avoid overwhelming responses
         """
         try:
@@ -325,7 +331,7 @@ class K8sHandler:
             data = KubernetesResourceListData(
                 kind=kind,
                 api_version=api_version,
-                namespace=namespace,
+                namespace=namespace if namespace else "all namespaces",
                 count=len(summaries),
                 items=summaries,
             )
