@@ -191,6 +191,53 @@ def test_format_response_list():
     assert "item1" in result
 
 
+def test_format_response_listData_key_vserver_style():
+    """vServer APIs wrap lists under 'listData' key, not 'items'."""
+    data = {"listData": [{"id": "sg-1", "name": "secgroup-1"}], "total": 1}
+    result = _format_response(data)
+    assert "sg-1" in result
+    assert "|" in result  # markdown table, not object dump
+
+
+def test_format_response_data_key():
+    data = {"data": [{"name": "x"}]}
+    result = _format_response(data)
+    assert "x" in result
+    assert "|" in result
+
+
+def test_format_response_results_key():
+    data = {"results": [{"name": "y"}]}
+    result = _format_response(data)
+    assert "y" in result
+
+
+def test_format_list_truncates_long_lists():
+    items = [{"id": i, "name": f"item-{i}"} for i in range(100)]
+    result = _format_list(items)
+    # Only first 30 shown
+    assert "item-0" in result
+    assert "item-29" in result
+    assert "item-30" not in result
+    # Truncation footer present
+    assert "Showing 30 of 100" in result
+
+
+def test_format_list_no_truncation_footer_when_small():
+    items = [{"id": i} for i in range(10)]
+    result = _format_list(items)
+    assert "Showing" not in result
+
+
+def test_format_list_scalar_items_truncated():
+    items = [f"str-{i}" for i in range(50)]
+    result = _format_list(items)
+    assert "str-0" in result
+    assert "str-29" in result
+    assert "str-30" not in result
+    assert "Showing 30 of 50" in result
+
+
 # --- HTTP responses ---
 
 async def test_404_error_returned_as_message(mock_config, mock_token_manager):

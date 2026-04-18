@@ -29,19 +29,33 @@ def _resolve_base_url(path: str, product: str | None, region: str, config: VksCo
     return endpoints.vks.rstrip("/")
 
 
+MAX_LIST_ROWS = 30  # truncate large lists to keep LLM context manageable
+
+# VNG Cloud APIs use different keys to wrap list payloads.
+LIST_KEYS = ("items", "listData", "data", "results", "records")
+
+
 def _format_list(items: list) -> str:
     if not items:
         return "No items found."
     if not isinstance(items[0], dict):
-        return "\n".join(f"- {item}" for item in items)
+        shown = items[:MAX_LIST_ROWS]
+        result = "\n".join(f"- {item}" for item in shown)
+        if len(items) > MAX_LIST_ROWS:
+            result += f"\n\n_Showing {MAX_LIST_ROWS} of {len(items)} items. Use query params (page, pageSize, filters) to narrow the result._"
+        return result
     keys = list(items[0].keys())[:6]
+    shown = items[:MAX_LIST_ROWS]
     header = "| " + " | ".join(keys) + " |"
     sep = "|" + "|".join("---" for _ in keys) + "|"
     rows = [
         "| " + " | ".join(str(item.get(k, "")) for k in keys) + " |"
-        for item in items
+        for item in shown
     ]
-    return "\n".join([header, sep] + rows)
+    result = "\n".join([header, sep] + rows)
+    if len(items) > MAX_LIST_ROWS:
+        result += f"\n\n_Showing {MAX_LIST_ROWS} of {len(items)} items. Use query params (page, pageSize, filters) to narrow the result._"
+    return result
 
 
 def _format_object(obj: dict) -> str:
@@ -51,9 +65,10 @@ def _format_object(obj: dict) -> str:
 def _format_response(data) -> str:
     """Best-effort markdown formatting of an API response."""
     if isinstance(data, dict):
-        items = data.get("items")
-        if isinstance(items, list):
-            return _format_list(items)
+        for key in LIST_KEYS:
+            value = data.get(key)
+            if isinstance(value, list):
+                return _format_list(value)
         return _format_object(data)
     if isinstance(data, list):
         return _format_list(data)
