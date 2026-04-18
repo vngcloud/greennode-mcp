@@ -608,25 +608,25 @@ class K8sHandler:
 
     async def apply_yaml(
         self,
-        yaml_path: str = Field(..., description="Absolute path to the YAML file to apply.\n            IMPORTANT: Must be an absolute path (e.g., '/home/user/manifests/app.yaml') as the MCP client and server might not run from the same location."),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        namespace: str = Field(..., description="Kubernetes namespace to apply resources to. Will be used for namespaced resources that do not specify a namespace."),
+        yaml_content: Optional[str] = Field(None, description="Inline YAML manifest string. Preferred when the MCP client and server run on different machines. Supports multi-document YAML (--- separators). Either yaml_content or yaml_path must be provided."),
+        yaml_path: Optional[str] = Field(None, description="Absolute path to a local YAML file on the server's machine (e.g. '/home/user/app.yaml'). Use yaml_content instead when running MCP remotely. Either yaml_content or yaml_path must be provided."),
+        namespace: Optional[str] = Field(None, description="Default namespace for resources in the YAML that don't specify one. If omitted, resources must declare their own namespace or be cluster-scoped."),
         force: bool = Field(True, description="Whether to update resources if they already exist (similar to kubectl apply). Set to false to only create new resources."),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
-        """Apply a Kubernetes YAML from a local file.
+        """Apply Kubernetes YAML manifest to a VKS cluster.
 
-        This tool applies Kubernetes resources defined in a YAML file to a VKS cluster,
-        similar to the `kubectl apply` command. It supports multi-document YAML files
-        and can create or update resources, useful for deploying applications, creating
-        Kubernetes resources, and applying complete application stacks.
+        Accepts either inline YAML content (recommended for remote MCP) or
+        an absolute file path. Supports multi-document YAML (--- separators).
+        Creates new resources or updates existing ones (when force=True), like
+        `kubectl apply -f`.
 
         IMPORTANT: Use this tool instead of 'kubectl apply -f' commands.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag
-        - The YAML file must exist and be accessible to the server
-        - The path must be absolute (e.g., '/home/user/manifests/app.yaml')
+        - Provide ONE of: yaml_content (inline string) or yaml_path (server-local file)
         - The VKS cluster must exist and be accessible
 
         ## Response Information
@@ -636,20 +636,27 @@ class K8sHandler:
         if not self.allow_write:
             raise RuntimeError("Write access denied: apply_yaml requires --allow-write flag.")
 
-        if not os.path.isabs(yaml_path):
-            raise RuntimeError(f"Path must be absolute: {yaml_path}")
+        if not yaml_content and not yaml_path:
+            raise RuntimeError("Provide either yaml_content (inline) or yaml_path (file path).")
+        if yaml_content and yaml_path:
+            raise RuntimeError("Provide only one of yaml_content or yaml_path, not both.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
 
-            logger.info("Reading YAML content from file: %s", yaml_path)
-            try:
-                with open(yaml_path, "r") as yaml_file:
-                    yaml_content = yaml_file.read()
-            except FileNotFoundError:
-                raise RuntimeError(f"YAML file not found: {yaml_path}")
-            except IOError as e:
-                raise RuntimeError(f"Error reading YAML file {yaml_path}: {str(e)}")
+            if yaml_path:
+                if not os.path.isabs(yaml_path):
+                    raise RuntimeError(f"Path must be absolute: {yaml_path}")
+                logger.info("Reading YAML content from file: %s", yaml_path)
+                try:
+                    with open(yaml_path, "r") as yaml_file:
+                        yaml_content = yaml_file.read()
+                except FileNotFoundError:
+                    raise RuntimeError(f"YAML file not found: {yaml_path}")
+                except IOError as e:
+                    raise RuntimeError(f"Error reading YAML file {yaml_path}: {str(e)}")
+            else:
+                logger.info("Applying inline YAML content (%d bytes)", len(yaml_content))
 
             yaml_objects = list(yaml.safe_load_all(yaml_content))
             yaml_objects = [doc for doc in yaml_objects if doc is not None]
@@ -657,12 +664,13 @@ class K8sHandler:
 
             results, created_count, updated_count = k8s_client.apply_from_yaml(
                 yaml_objects=yaml_objects,
-                namespace=namespace,
+                namespace=namespace or "default",
                 force=force,
             )
 
+            source = f"file {yaml_path}" if yaml_path else "inline YAML"
             success_msg = (
-                f"Successfully applied all resources from YAML file {yaml_path}"
+                f"Successfully applied all resources from {source}"
                 f" ({created_count} created, {updated_count} updated)"
             )
             logger.info(success_msg)
