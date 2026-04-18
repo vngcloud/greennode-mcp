@@ -59,6 +59,9 @@ def _format_list(items: list) -> str:
 
 
 def _format_object(obj: dict) -> str:
+    if len(obj) == 1:
+        k, v = next(iter(obj.items()))
+        return f"{k}: {v}"
     return "\n".join(f"**{k}**: {v}" for k, v in obj.items())
 
 

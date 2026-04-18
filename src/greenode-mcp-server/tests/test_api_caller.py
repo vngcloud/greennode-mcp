@@ -173,6 +173,14 @@ def test_format_object():
     result = _format_object({"uid": "abc", "name": "test"})
     assert "uid" in result
     assert "abc" in result
+    assert "**uid**" in result  # multi-field still uses bold
+
+
+def test_format_object_single_field_uses_plain_format():
+    """Single-field responses avoid markdown bold noise."""
+    result = _format_object({"status": "DELETING"})
+    assert result == "status: DELETING"
+    assert "**" not in result
 
 
 def test_format_response_with_items_key():
