@@ -1,17 +1,19 @@
-"""OpenAPI spec loader and endpoint index for VNG Cloud APIs."""
+"""OpenAPI endpoint index built from specs loaded by the registry layer."""
 from __future__ import annotations
 
-import json
+import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SPECS_DIR = Path(__file__).parent.parent.parent / "specs"
+from .registry.factory import get_provider
+from .registry.loader import LoadOptions, load_specs
+
+
+DEFAULT_CACHE_DIR = Path.home() / ".greenode" / "mcp-specs"
 
 
 @dataclass
 class EndpointEntry:
-    """A single API endpoint extracted from an OpenAPI spec."""
-
     product: str
     method: str
     path: str
@@ -19,10 +21,9 @@ class EndpointEntry:
     description: str
     parameters: list = field(default_factory=list)
     request_body: dict | None = None
-    servers: dict = field(default_factory=dict)  # {"HCM-3": "https://...", "HAN": "https://..."}
+    servers: dict = field(default_factory=dict)
 
     def format(self) -> str:
-        """Format entry for search_api tool output."""
         lines = [f"{self.method} {self.path} — {self.summary}"]
         if self.parameters:
             param_names = [
@@ -47,7 +48,6 @@ class EndpointEntry:
 
 
 def _parse_servers(spec: dict) -> dict:
-    """Extract region → base URL mapping from OpenAPI servers[]."""
     servers: dict[str, str] = {}
     for s in spec.get("servers", []):
         url = s.get("url", "").rstrip("/")
@@ -60,56 +60,68 @@ def _parse_servers(spec: dict) -> dict:
         elif "han" in url_lower or "han" in desc_lower:
             servers["HAN"] = url
         else:
-            # Single server (no region hint) — use for all regions
             servers.setdefault("HCM-3", url)
             servers.setdefault("HAN", url)
     return servers
 
 
-def load_index() -> list[EndpointEntry]:
-    """Load all OpenAPI specs from SPECS_DIR and return a flat endpoint list."""
+def _build_entries(product: str, spec: dict) -> list[EndpointEntry]:
     entries: list[EndpointEntry] = []
-    if not SPECS_DIR.exists():
-        return entries
-
-    for spec_file in sorted(SPECS_DIR.glob("*.json")):
-        product = spec_file.stem
-        try:
-            spec = json.loads(spec_file.read_text())
-        except (json.JSONDecodeError, OSError):
+    servers = _parse_servers(spec)
+    for path, path_item in spec.get("paths", {}).items():
+        if not isinstance(path_item, dict):
             continue
-
-        servers = _parse_servers(spec)
-
-        for path, path_item in spec.get("paths", {}).items():
-            if not isinstance(path_item, dict):
+        for method, op in path_item.items():
+            if method.upper() not in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"):
                 continue
-            for method, op in path_item.items():
-                if method.upper() not in ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"):
-                    continue
-                if not isinstance(op, dict):
-                    continue
-                entries.append(EndpointEntry(
-                    product=product,
-                    method=method.upper(),
-                    path=path,
-                    summary=op.get("summary", ""),
-                    description=op.get("description", ""),
-                    parameters=op.get("parameters", []),
-                    request_body=op.get("requestBody"),
-                    servers=servers,
-                ))
+            if not isinstance(op, dict):
+                continue
+            entries.append(EndpointEntry(
+                product=product,
+                method=method.upper(),
+                path=path,
+                summary=op.get("summary", ""),
+                description=op.get("description", ""),
+                parameters=op.get("parameters", []),
+                request_body=op.get("requestBody"),
+                servers=servers,
+            ))
     return entries
 
 
 _INDEX: list[EndpointEntry] | None = None
 
 
+def initialize_index(
+    refresh: bool = False,
+    offline: bool = False,
+    cache_dir: Path | None = None,
+) -> list[EndpointEntry]:
+    """Load specs via the registry and build the in-memory endpoint index."""
+    global _INDEX
+    provider = get_provider()
+    options = LoadOptions(refresh=refresh, offline=offline)
+    loaded = asyncio.run(load_specs(provider, cache_dir or DEFAULT_CACHE_DIR, options))
+    entries: list[EndpointEntry] = []
+    for s in loaded:
+        entries.extend(_build_entries(s.name, s.spec))
+    _INDEX = entries
+    return entries
+
+
+def set_index(entries: list[EndpointEntry]) -> None:
+    """Replace the singleton index (for tests)."""
+    global _INDEX
+    _INDEX = list(entries)
+
+
 def get_index() -> list[EndpointEntry]:
-    """Return the singleton endpoint index, loading specs on first call."""
+    """Return the singleton endpoint index. Raise if not initialized."""
     global _INDEX
     if _INDEX is None:
-        _INDEX = load_index()
+        raise RuntimeError(
+            "api_index not initialized. Call initialize_index() at server startup."
+        )
     return _INDEX
 
 
@@ -120,11 +132,6 @@ def reset_index() -> None:
 
 
 def search(query: str, product: str | None = None, max_results: int = 5) -> list[EndpointEntry]:
-    """Keyword search over the endpoint index.
-
-    All whitespace-separated terms must appear in the searchable text (AND logic).
-    Returns up to max_results entries.
-    """
     terms = [t.lower() for t in query.split() if t]
     if not terms:
         return []

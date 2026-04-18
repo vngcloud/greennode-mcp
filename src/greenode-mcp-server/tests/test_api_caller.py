@@ -13,12 +13,43 @@ from greennode.greenode_mcp_server.api_caller import (
     _format_response,
     call_api,
 )
-from greennode.greenode_mcp_server.api_index import reset_index
+from greennode.greenode_mcp_server.api_index import (
+    EndpointEntry,
+    reset_index,
+    set_index,
+)
 
 
 @pytest.fixture(autouse=True)
 def _reset():
     reset_index()
+    # Initialize with a minimal VKS spec for testing
+    set_index([
+        EndpointEntry(
+            product="vks",
+            method="GET",
+            path="/v1/clusters",
+            summary="List clusters",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+        EndpointEntry(
+            product="vks",
+            method="POST",
+            path="/v1/clusters",
+            summary="Create cluster",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+        EndpointEntry(
+            product="vks",
+            method="DELETE",
+            path="/v1/clusters/{cluster_id}",
+            summary="Delete cluster",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+    ])
     yield
     reset_index()
 

@@ -5,7 +5,7 @@ MCP (Model Context Protocol) Server for VNG Cloud. Provides AI assistants with t
 ## Key Features
 
 - **Dynamic API Call** — Two tools (`search_api` + `call_api`) cover all VNG Cloud REST APIs
-- **OpenAPI-driven** — Adding a new product = adding a spec file to `specs/`
+- **Live spec registry** — Specs fetched from VNG Cloud's docs portal at startup; new products appear automatically without a server release
 - **Kubernetes Resources** — List pods/deployments/services, get logs, apply YAML manifests
 - **Safety Controls** — Read-only by default, write operations require explicit opt-in
 - **Streamable HTTP** — Remote hosting via `--transport streamable-http`
@@ -97,16 +97,28 @@ Requires kubeconfig from VKS API.
 | `--host` | `127.0.0.1` | Bind host for HTTP transport |
 | `--port` | `8000` | Bind port for HTTP transport |
 | `--api-key` | — | Bearer token for HTTP endpoint (env: `GRN_MCP_API_KEY`) |
+| `--refresh-specs` | — | Bypass cached specs; force re-download from registry |
+| `--offline` | — | Skip registry fetch; use cached specs only |
+
+## Spec Registry
+
+Specs are fetched from VNG Cloud's public docs portal at server start and cached locally at `~/.greenode/mcp-specs/`.
+
+- **First run** requires internet access to `docs.api.vngcloud.vn`
+- **Subsequent runs** reuse the cache; refresh is automatic once per 24 hours (or on `--refresh-specs`)
+- **Offline mode** (`--offline`) works once the cache has been populated by at least one successful run
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Cannot reach spec source` on first run | No network to `docs.api.vngcloud.vn` | Restore network; or populate cache offline from another machine |
+| `search_api` returns empty for a known product | Product's docs page changed format | Run with `--refresh-specs` to re-fetch; report if persists |
+| Stale spec despite product update | Cache TTL has not expired (24 h) | Run with `--refresh-specs` to force re-download |
 
 ## Supported Products
 
-Products are added by bundling OpenAPI specs in `specs/`. Currently available:
-
-| Product | Spec file | Endpoints |
-|---------|-----------|-----------|
-| VKS (VNG Kubernetes Service) | `vks.json` | 28 |
-
-More products (vServer, vLB, vStorage, vNetwork, DNS, CDN, vMonitor, vDB) will be added incrementally.
+Products are sourced dynamically from the VNG Cloud docs portal — any product published there becomes available on the next server restart. At time of writing, the portal documents VKS, vServer, vLB, vDB, vMonitor and more. New products require no server release.
 
 ## Security
 

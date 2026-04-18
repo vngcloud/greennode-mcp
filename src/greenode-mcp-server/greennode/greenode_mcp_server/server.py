@@ -114,6 +114,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
     )
+    parser.add_argument(
+        "--refresh-specs",
+        action="store_true",
+        default=False,
+        help="Bypass cached specs and force re-download from the spec registry",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        default=False,
+        help="Do not contact the spec registry; use cached specs only",
+    )
     return parser
 
 
@@ -127,6 +139,10 @@ def main() -> None:
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
     client = GreenodeClient(config, token_manager)  # used by K8s handler only
+
+    # Initialize spec registry (fetches/loads specs before tools are registered)
+    from greennode.greenode_mcp_server.api_index import initialize_index
+    initialize_index(refresh=args.refresh_specs, offline=args.offline)
 
     mcp = FastMCP("greenode-mcp-server", instructions=SERVER_INSTRUCTIONS)
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+### Features
+* Specs are now fetched dynamically from VNG Cloud's docs portal at server start — new products become available without a server release
+* Added `--refresh-specs` flag to bypass cache and force re-download
+* Added `--offline` flag to start from cache only without contacting the registry
+* Added `SpecProvider` abstraction so the source can be swapped later (S3, OCI, etc.) with a one-line change
+
+### Breaking Changes
+* `vks.json` is no longer bundled in the wheel. First run of v0.4.0 on a new machine requires network access to `docs.api.vngcloud.vn`. To roll back: `uvx greenode-mcp-server@0.3.2`.
+
 ## 0.3.2
 
 ### Fixes

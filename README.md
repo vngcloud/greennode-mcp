@@ -68,9 +68,8 @@ greenode-mcp/
 │   └── greenode-mcp-server/            # GreenNode MCP Server
 │       ├── README.md                    # Server-specific docs, tools, security
 │       ├── pyproject.toml               # Package config + dependencies
-│       ├── specs/                       # Bundled OpenAPI specs (*.json)
 │       ├── greennode/
-│       │   └── greenode_mcp_server/     # Source code
+│       │   └── greenode_mcp_server/     # Source code (incl. registry/ module)
 │       └── tests/                       # Test suite
 ├── scripts/                             # Release scripts
 ├── docs/                                # Development guide

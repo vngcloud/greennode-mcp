@@ -4,7 +4,7 @@
 
 GreenNode MCP Servers provide AI assistants (Claude, Cursor, Gemini, etc.) with tools to manage GreenNode services via the Model Context Protocol.
 
-- **Single server** — `greenode-mcp-server` covers all products via bundled OpenAPI specs
+- **Single server** — `greenode-mcp-server` covers all VNG Cloud products via a spec registry (`docs.api.vngcloud.vn`, fetched at startup, cached at `~/.greenode/mcp-specs/`)
 - **Namespace package** — `greennode.greenode_mcp_server`
 
 ### Available servers
@@ -20,9 +20,11 @@ greenode-mcp/
 ├── src/
 │   └── greenode-mcp-server/
 │       ├── pyproject.toml
-│       ├── specs/                    # Bundled OpenAPI specs (*.json)
 │       ├── greennode/
 │       │   └── greenode_mcp_server/
+│       │       ├── registry/        # Spec registry (provider + cache + loader)
+│       │       ├── _build_info.py   # Build-time baked DEFAULT_DOCS_PORTAL_URL
+│       │       └── ...
 │       └── tests/
 ├── scripts/
 ├── docs/
@@ -57,7 +59,7 @@ greenode-mcp/
 
 ## Adding a new MCP server (new product)
 
-The greenode-mcp-server now covers all products via bundled OpenAPI specs, so adding a new product typically means adding a new spec file to `src/greenode-mcp-server/specs/` rather than creating a separate server.
+The greenode-mcp-server covers all products via the spec registry (`docs.api.vngcloud.vn`). Adding a new product = VNG Cloud team publishes the product's OpenAPI page on the docs portal. The server picks it up on next restart — no code change, no release needed.
 
 If a truly separate server is needed:
 
@@ -131,9 +133,16 @@ Code without docs is not done.
 
 | File | Purpose |
 |------|---------|
-| `greennode/greenode_mcp_server/server.py` | FastMCP entry point, tool registration, CLI flags |
-| `greennode/greenode_mcp_server/api_index.py` | Spec loader, in-memory index, keyword search |
+| `greennode/greenode_mcp_server/server.py` | FastMCP entry point, tool registration, CLI flags (`--refresh-specs`, `--offline`, ...) |
+| `greennode/greenode_mcp_server/api_index.py` | In-memory endpoint index, keyword search; delegates loading to `registry/` |
 | `greennode/greenode_mcp_server/api_caller.py` | call_api tool — write guard, auth injection, response formatting |
+| `greennode/greenode_mcp_server/_build_info.py` | Build-time baked `DEFAULT_DOCS_PORTAL_URL` (CI overwrites at release) |
+| `greennode/greenode_mcp_server/registry/provider.py` | `SpecProvider` Protocol, `ProductRef`, error types |
+| `greennode/greenode_mcp_server/registry/factory.py` | Selects active provider (swap here to migrate sources) |
+| `greennode/greenode_mcp_server/registry/redocly_portal.py` | Default provider — scrapes docs portal inline OpenAPI JSON |
+| `greennode/greenode_mcp_server/registry/local_dir.py` | Dev/test provider — reads specs from `GRN_MCP_SPEC_DIR` |
+| `greennode/greenode_mcp_server/registry/cache.py` | On-disk spec cache at `~/.greenode/mcp-specs/` with TTL + ETag |
+| `greennode/greenode_mcp_server/registry/loader.py` | Orchestrator — ties provider + cache + CLI flags together |
 | `greennode/greenode_mcp_server/config.py` | Config loading, REGIONS dict |
 | `greennode/greenode_mcp_server/auth.py` | TokenManager — async OAuth2 with auto-refresh |
 | `greennode/greenode_mcp_server/client.py` | GreenodeClient — used by K8s handler for kubeconfig fetch |
