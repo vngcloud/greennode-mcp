@@ -28,6 +28,69 @@ from greennode.greenode_mcp_server.models import (
 logger = logging.getLogger(__name__)
 
 
+# Default apiVersion for common built-in K8s kinds.
+# Used when the caller doesn't specify `api_version` explicitly.
+# Custom resources are not in this list — caller must pass api_version.
+COMMON_API_VERSIONS: dict[str, str] = {
+    # core/v1
+    "Pod": "v1",
+    "Service": "v1",
+    "ConfigMap": "v1",
+    "Secret": "v1",
+    "Namespace": "v1",
+    "Node": "v1",
+    "PersistentVolume": "v1",
+    "PersistentVolumeClaim": "v1",
+    "ServiceAccount": "v1",
+    "Event": "v1",
+    "Endpoints": "v1",
+    "LimitRange": "v1",
+    "ResourceQuota": "v1",
+    # apps/v1
+    "Deployment": "apps/v1",
+    "StatefulSet": "apps/v1",
+    "DaemonSet": "apps/v1",
+    "ReplicaSet": "apps/v1",
+    # batch/v1
+    "Job": "batch/v1",
+    "CronJob": "batch/v1",
+    # networking
+    "Ingress": "networking.k8s.io/v1",
+    "NetworkPolicy": "networking.k8s.io/v1",
+    "IngressClass": "networking.k8s.io/v1",
+    # rbac
+    "Role": "rbac.authorization.k8s.io/v1",
+    "RoleBinding": "rbac.authorization.k8s.io/v1",
+    "ClusterRole": "rbac.authorization.k8s.io/v1",
+    "ClusterRoleBinding": "rbac.authorization.k8s.io/v1",
+    # storage
+    "StorageClass": "storage.k8s.io/v1",
+    "VolumeAttachment": "storage.k8s.io/v1",
+    # autoscaling
+    "HorizontalPodAutoscaler": "autoscaling/v2",
+    # apiextensions
+    "CustomResourceDefinition": "apiextensions.k8s.io/v1",
+    # policy
+    "PodDisruptionBudget": "policy/v1",
+}
+
+
+def _resolve_api_version(kind: str, api_version: str | None) -> str:
+    """Return `api_version` if set; otherwise look up kind in COMMON_API_VERSIONS.
+
+    Raises ValueError with a helpful hint when neither works.
+    """
+    if api_version:
+        return api_version
+    resolved = COMMON_API_VERSIONS.get(kind)
+    if resolved:
+        return resolved
+    raise ValueError(
+        f"api_version is required for kind {kind!r} (not in the built-in defaults). "
+        f"Use list_api_versions to find available versions."
+    )
+
+
 class K8sHandler:
     """Handler for Kubernetes operations in the GreenNode MCP Server.
 
@@ -127,7 +190,7 @@ class K8sHandler:
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         kind: str = Field(..., description="Kind of the Kubernetes resources to list (e.g., 'Pod', 'Service', 'Deployment').\n            Use the list_api_versions tool to find available resource kinds."),
-        api_version: str = Field(..., description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Use the list_api_versions tool to find available API versions."),
+        api_version: Optional[str] = Field(None, description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Optional for common built-in kinds (Pod, Deployment, Service, etc.) — auto-defaulted.\n            Required for custom resources; use list_api_versions to find available API versions."),
         namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resources to list.\n            If not provided, resources will be listed across all namespaces (for namespaced resources)."),
         label_selector: Optional[str] = Field(None, description="Label selector to filter resources (e.g., 'app=nginx,tier=frontend').\n            Uses the same syntax as kubectl's --selector flag."),
         field_selector: Optional[str] = Field(None, description="Field selector to filter resources (e.g., 'metadata.name=my-pod,status.phase=Running').\n            Uses the same syntax as kubectl's --field-selector flag."),
@@ -154,6 +217,7 @@ class K8sHandler:
         - Results are summarized to avoid overwhelming responses
         """
         try:
+            api_version = _resolve_api_version(kind, api_version)
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.list_resources(
                 kind, api_version,
@@ -375,7 +439,7 @@ class K8sHandler:
         operation: str = Field(..., description="Operation to perform on the resource. Valid values:\n            - create: Create a new resource\n            - replace: Replace an existing resource\n            - patch: Update specific fields of an existing resource\n            - delete: Delete an existing resource\n            - read: Get details of an existing resource\n            Use list_k8s_resources for listing multiple resources."),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         kind: str = Field(..., description='Kind of the Kubernetes resource (e.g., "Pod", "Service", "Deployment").'),
-        api_version: str = Field(..., description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1").'),
+        api_version: Optional[str] = Field(None, description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1"). Optional for common built-in kinds — auto-defaulted. Required for custom resources.'),
         name: Optional[str] = Field(None, description="Name of the Kubernetes resource. Required for all operations except create (where it can be specified in the body)."),
         namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resource. Required for namespaced resources.\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes)."),
         body: Optional[Dict[str, Any]] = Field(None, description="Resource definition as a dictionary. Required for create, replace, and patch operations.\n            For create and replace, this should be a complete resource definition.\n            For patch, this should contain only the fields to update."),
@@ -428,6 +492,7 @@ class K8sHandler:
                 raise RuntimeError("Access denied: reading Kubernetes Secrets requires --allow-sensitive-data-access flag.")
 
         try:
+            api_version = _resolve_api_version(kind, api_version)
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.manage_resource(
                 operation_enum, kind, api_version,

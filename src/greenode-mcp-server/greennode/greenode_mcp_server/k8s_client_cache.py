@@ -33,13 +33,42 @@ class K8sClientCache:
         return self._cache[cluster_id]
 
     async def _create_client(self, cluster_id: str, region: str | None) -> K8sApis:
-        """Fetch kubeconfig from VKS API and create a K8sApis instance."""
+        """Fetch kubeconfig from VKS API and create a K8sApis instance.
+
+        VKS returns `ClusterKubeConfigDto`:
+            {"kubeConfig": "<yaml>", "status": "ACTIVE" | "NONE" | "CREATING" | "ERROR", ...}
+
+        We extract `kubeConfig` (the YAML string) and only use it when status
+        is ACTIVE. For NONE/CREATING/ERROR we raise a clear error so the
+        caller knows to request kubeconfig creation first.
+        """
         from kubernetes import config as k8s_config
 
-        kubeconfig_yaml = await self._vks_client.get_raw(
+        response = await self._vks_client.get(
             f"/v1/clusters/{cluster_id}/kubeconfig",
             region=region,
         )
+
+        status = response.get("status")
+        if status == "NONE":
+            raise RuntimeError(
+                f"Cluster {cluster_id} has no kubeconfig yet. "
+                f"Create one via POST /v1/clusters/{cluster_id}/kubeconfig first."
+            )
+        if status == "CREATING":
+            raise RuntimeError(
+                f"Kubeconfig for cluster {cluster_id} is still being generated. Try again shortly."
+            )
+        if status == "ERROR":
+            raise RuntimeError(f"Kubeconfig for cluster {cluster_id} is in ERROR state.")
+
+        kubeconfig_yaml = response.get("kubeConfig")
+        if not kubeconfig_yaml:
+            raise RuntimeError(
+                f"Kubeconfig response for cluster {cluster_id} had no 'kubeConfig' field. "
+                f"Response keys: {sorted(response.keys())}"
+            )
+
         kubeconfig_dict = yaml.safe_load(kubeconfig_yaml)
         api_client = k8s_config.new_client_from_config_dict(kubeconfig_dict)
         return K8sApis.from_api_client(api_client)
