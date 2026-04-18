@@ -75,6 +75,82 @@ COMMON_API_VERSIONS: dict[str, str] = {
 }
 
 
+def _summarize_status(kind: str, resource: dict) -> str:
+    """Return a compact one-line status summary for common K8s kinds.
+
+    Unknown kinds fall through to a generic `status.phase` lookup and an
+    empty string if nothing meaningful is present.
+    """
+    status = resource.get("status") or {}
+    spec = resource.get("spec") or {}
+
+    if kind == "Pod":
+        phase = status.get("phase", "Unknown")
+        container_statuses = status.get("containerStatuses") or []
+        ready = sum(1 for c in container_statuses if c.get("ready"))
+        total = len(container_statuses)
+        restarts = sum(c.get("restartCount", 0) for c in container_statuses)
+        return f"{phase} (ready {ready}/{total}, restarts {restarts})"
+
+    if kind in ("Deployment", "ReplicaSet", "StatefulSet"):
+        ready = status.get("readyReplicas", 0) or 0
+        desired = spec.get("replicas", 0) or 0
+        return f"{ready}/{desired} ready"
+
+    if kind == "DaemonSet":
+        ready = status.get("numberReady", 0) or 0
+        desired = status.get("desiredNumberScheduled", 0) or 0
+        return f"{ready}/{desired} ready"
+
+    if kind == "Service":
+        svc_type = spec.get("type", "")
+        cluster_ip = spec.get("clusterIP", "")
+        ingress = (status.get("loadBalancer") or {}).get("ingress") or []
+        external = ", ".join(i.get("ip") or i.get("hostname") or "" for i in ingress if i)
+        return f"{svc_type} {cluster_ip}".strip() + (f" → {external}" if external else "")
+
+    if kind == "PersistentVolumeClaim":
+        phase = status.get("phase", "Unknown")
+        capacity = (status.get("capacity") or {}).get("storage", "")
+        return f"{phase}" + (f" ({capacity})" if capacity else "")
+
+    if kind == "PersistentVolume":
+        phase = status.get("phase", "Unknown")
+        capacity = (spec.get("capacity") or {}).get("storage", "")
+        claim = spec.get("claimRef") or {}
+        claim_name = f"{claim.get('namespace', '')}/{claim.get('name', '')}" if claim else ""
+        return f"{phase}" + (f" ({capacity})" if capacity else "") + (f" → {claim_name}" if claim_name else "")
+
+    if kind == "Node":
+        conditions = status.get("conditions") or []
+        ready_cond = next((c for c in conditions if c.get("type") == "Ready"), None)
+        ready = ready_cond and ready_cond.get("status") == "True"
+        version = (status.get("nodeInfo") or {}).get("kubeletVersion", "")
+        return f"{'Ready' if ready else 'NotReady'}" + (f" ({version})" if version else "")
+
+    if kind == "Job":
+        succeeded = status.get("succeeded", 0) or 0
+        failed = status.get("failed", 0) or 0
+        active = status.get("active", 0) or 0
+        return f"active={active} succeeded={succeeded} failed={failed}"
+
+    if kind == "CronJob":
+        last = status.get("lastScheduleTime", "") or ""
+        active = len(status.get("active") or [])
+        return f"active={active}" + (f" lastSchedule={last}" if last else "")
+
+    if kind == "Ingress":
+        ingress = (status.get("loadBalancer") or {}).get("ingress") or []
+        addrs = ", ".join(i.get("ip") or i.get("hostname") or "" for i in ingress if i)
+        return addrs or "no address"
+
+    # Generic fallback
+    phase = status.get("phase")
+    if phase:
+        return str(phase)
+    return ""
+
+
 def _resolve_api_version(kind: str, api_version: str | None) -> str:
     """Return `api_version` if set; otherwise look up kind in COMMON_API_VERSIONS.
 
@@ -237,6 +313,7 @@ class K8sHandler:
                     creation_timestamp=str(creation_timestamp),
                     labels=metadata.get("labels", None),
                     annotations=metadata.get("annotations", None),
+                    status_summary=_summarize_status(kind, item_dict) or None,
                 )
                 summaries.append(summary)
 

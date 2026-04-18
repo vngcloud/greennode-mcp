@@ -412,6 +412,10 @@ class ResourceSummary(BaseModel):
     creation_timestamp: Optional[str] = Field(None, description="Creation timestamp")
     labels: Optional[Dict[str, str]] = Field(None, description="Resource labels")
     annotations: Optional[Dict[str, str]] = Field(None, description="Resource annotations")
+    status_summary: Optional[str] = Field(
+        None,
+        description="Compact status summary, e.g. 'Running (ready 1/1, restarts 0)' for Pods, '3/3 ready' for Deployments",
+    )
 
 
 class KubernetesResourceListData(BaseModel):
