@@ -356,7 +356,6 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl logs' commands.
 
         ## Requirements
-        - The server must be run with the `--allow-sensitive-data-access` flag
         - The pod must exist and be accessible in the specified namespace
         - The VKS cluster must exist and be accessible
 
@@ -364,8 +363,6 @@ class K8sHandler:
         The response includes pod name, namespace, container name (if specified),
         and log lines as an array of strings.
         """
-        if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading pod logs requires --allow-sensitive-data-access flag.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
@@ -419,7 +416,6 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl describe' or 'kubectl get events' commands.
 
         ## Requirements
-        - The server must be run with the `--allow-sensitive-data-access` flag
         - The resource must exist and be accessible in the specified namespace
 
         ## Response Information
@@ -432,8 +428,6 @@ class K8sHandler:
         - The count field shows how many times the same event has occurred
         - Recent events are most relevant for current issues
         """
-        if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading Kubernetes events requires --allow-sensitive-data-access flag.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
