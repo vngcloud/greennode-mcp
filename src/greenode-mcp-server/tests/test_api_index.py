@@ -173,3 +173,62 @@ def test_endpoint_entry_format_includes_method_and_path():
     assert "GET" in result
     assert "/v1/clusters" in result
     assert "List all clusters" in result
+
+
+def test_endpoint_entry_format_includes_product_prefix():
+    e = EndpointEntry(product="vlb", method="GET", path="/v2/lbs",
+                      summary="List LBs", description="")
+    assert "[vlb]" in e.format()
+
+
+# --- Fallback and stemming ---
+
+def test_search_falls_back_to_all_products_when_scoped_empty():
+    """Query for 'flavor' in vks (no flavor there) should fall back to vserver."""
+    entries = _build_entries("vks", MINIMAL_SPEC) + _build_entries("vserver", {
+        "paths": {"/v1/flavors": {"get": {"summary": "List flavors", "description": ""}}}
+    })
+    _setup(entries)
+    results = search("flavor", product="vks")
+    assert len(results) >= 1
+    assert results[0].product == "vserver"
+
+
+def test_search_stemming_matches_plural():
+    """Query 'clusters' (plural) matches entries with 'cluster' (singular)."""
+    spec = {"paths": {"/v1/x": {"get": {"summary": "Get cluster details", "description": ""}}}}
+    _setup(_build_entries("vks", spec))
+    assert len(search("clusters")) >= 1
+
+
+def test_search_stemming_matches_stem_to_plural():
+    """Query 'cluster' matches entries with 'clusters' (substring match)."""
+    spec = {"paths": {"/v1/x": {"get": {"summary": "List clusters", "description": ""}}}}
+    _setup(_build_entries("vks", spec))
+    assert len(search("cluster")) >= 1
+
+
+def test_search_or_fallback_when_and_fails():
+    """Multi-term query where no entry has both terms falls back to OR."""
+    entries = [
+        EndpointEntry(product="vks", method="GET", path="/v1/clusters",
+                      summary="list clusters", description=""),
+        EndpointEntry(product="vlb", method="GET", path="/v2/loadbalancers",
+                      summary="list loadbalancers", description=""),
+    ]
+    _setup(entries)
+    results = search("create list")  # AND: no match. OR: both match on "list".
+    assert len(results) == 2
+
+
+def test_search_ranks_summary_match_higher():
+    """Entry with term in summary outranks entry with term only in description."""
+    entries = [
+        EndpointEntry(product="p1", method="GET", path="/a", summary="something",
+                      description="cluster operations"),
+        EndpointEntry(product="p2", method="GET", path="/b", summary="manage cluster",
+                      description="other"),
+    ]
+    _setup(entries)
+    results = search("cluster")
+    assert results[0].summary == "manage cluster"

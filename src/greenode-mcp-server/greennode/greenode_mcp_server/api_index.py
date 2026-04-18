@@ -24,7 +24,7 @@ class EndpointEntry:
     servers: dict = field(default_factory=dict)
 
     def format(self) -> str:
-        lines = [f"{self.method} {self.path} — {self.summary}"]
+        lines = [f"[{self.product}] {self.method} {self.path} — {self.summary}"]
         if self.parameters:
             param_names = [
                 p.get("name", "") for p in self.parameters
@@ -131,15 +131,84 @@ def reset_index() -> None:
     _INDEX = None
 
 
+def _stem(term: str) -> str:
+    """Simple singular form: trim trailing 's' for words longer than 4 chars."""
+    if len(term) > 4 and term.endswith("s"):
+        return term[:-1]
+    return term
+
+
+def _variants(term: str) -> tuple[str, str]:
+    """Return (term, stemmed). If stem == term, both are the same."""
+    return term, _stem(term)
+
+
+def _matches(entry: EndpointEntry, term: str, stem: str) -> bool:
+    """Return True if either term or its stem appears anywhere in the entry."""
+    hay = f"{entry.product} {entry.method} {entry.path} {entry.summary} {entry.description}".lower()
+    return term in hay or (stem != term and stem in hay)
+
+
+def _score(entry: EndpointEntry, terms: list[str]) -> int:
+    """Relevance score — summary > path > description > product."""
+    score = 0
+    summary = entry.summary.lower()
+    path = entry.path.lower()
+    desc = entry.description.lower()
+    prod = entry.product.lower()
+    for term in terms:
+        _, stem = _variants(term)
+        if term in summary or (stem != term and stem in summary):
+            score += 3
+        if term in path or (stem != term and stem in path):
+            score += 2
+        if term in desc or (stem != term and stem in desc):
+            score += 1
+        if term in prod:
+            score += 1
+    return score
+
+
+def _filter(entries: list[EndpointEntry], terms: list[str], require_all: bool) -> list[EndpointEntry]:
+    variants = [_variants(t) for t in terms]
+    matched: list[EndpointEntry] = []
+    for e in entries:
+        if require_all:
+            if all(_matches(e, t, s) for t, s in variants):
+                matched.append(e)
+        else:
+            if any(_matches(e, t, s) for t, s in variants):
+                matched.append(e)
+    return matched
+
+
 def search(query: str, product: str | None = None, max_results: int = 5) -> list[EndpointEntry]:
+    """Keyword search with smart fallback when strict match returns nothing.
+
+    Tier 1: AND all terms, filtered by product (most precise)
+    Tier 2: AND all terms, all products (if product filter excluded matches)
+    Tier 3: OR any term, filtered by product
+    Tier 4: OR any term, all products
+
+    Results ranked by relevance (summary > path > description).
+    """
     terms = [t.lower() for t in query.split() if t]
     if not terms:
         return []
-    results = []
-    for entry in get_index():
-        if product and entry.product != product:
-            continue
-        searchable = f"{entry.product} {entry.method} {entry.path} {entry.summary} {entry.description}".lower()
-        if all(term in searchable for term in terms):
-            results.append(entry)
+
+    all_entries = get_index()
+    scoped = [e for e in all_entries if not product or e.product == product]
+
+    results: list[EndpointEntry] = []
+    for tier_entries, require_all in (
+        (scoped, True),
+        (all_entries if product else scoped, True),
+        (scoped, False),
+        (all_entries if product else scoped, False),
+    ):
+        results = _filter(tier_entries, terms, require_all=require_all)
+        if results:
+            break
+
+    results.sort(key=lambda e: _score(e, terms), reverse=True)
     return results[:max_results]
