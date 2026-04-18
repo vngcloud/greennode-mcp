@@ -198,6 +198,37 @@ async def test_list_products_fails_falls_back_to_cached_index(cache_dir: Path, o
     assert len(result) == 1
 
 
+# --- cacheless providers (LocalDirProvider) ---
+
+@pytest.mark.asyncio
+async def test_local_dir_provider_bypasses_cache(cache_dir: Path, opts: LoadOptions):
+    """LocalDirProvider must not read or write the production cache."""
+    refs = [ProductRef(name="vks", display_name="VKS", source_url="https://x/vks")]
+    provider = _make_provider(refs)
+    provider.provider_name.return_value = "local-dir"
+    await load_specs(provider, cache_dir, opts)
+    # No cache files should be written
+    assert not cache_dir.exists() or list(cache_dir.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_local_dir_provider_reads_fresh_every_time(cache_dir: Path, opts: LoadOptions):
+    """LocalDirProvider must call fetch_spec even if a cache exists."""
+    cache = SpecCache(cache_dir, ttl_seconds=24 * 3600)
+    cache.save_spec("vks", {"openapi": "3.0.0", "info": {"title": "Old Cached"}, "paths": {}})
+    cache.save_index(
+        [CachedProduct(name="vks", display_name="VKS", source_url="https://x/vks", fetched_at=_now())],
+        provider_name="local-dir",
+    )
+    refs = [ProductRef(name="vks", display_name="VKS", source_url="https://x/vks")]
+    provider = _make_provider(refs)
+    provider.provider_name.return_value = "local-dir"
+    result = await load_specs(provider, cache_dir, opts)
+    provider.fetch_spec.assert_called_once()
+    # Result uses fresh provider response, not cached content
+    assert result[0].spec["info"]["title"] == "VKS"
+
+
 # --- cleanup ---
 
 @pytest.mark.asyncio

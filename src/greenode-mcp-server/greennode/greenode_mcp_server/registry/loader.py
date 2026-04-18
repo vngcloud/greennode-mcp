@@ -39,13 +39,24 @@ class LoadedSpec:
     spec: dict
 
 
+CACHELESS_PROVIDERS = frozenset({"local-dir"})
+
+
 async def load_specs(
     provider: SpecProvider,
     cache_dir: Path,
     options: LoadOptions,
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
 ) -> list[LoadedSpec]:
-    """Load all product specs using `provider`, caching under `cache_dir`."""
+    """Load all product specs using `provider`, caching under `cache_dir`.
+
+    Cacheless providers (e.g. LocalDirProvider) bypass the cache entirely —
+    they re-read source files on every call, which is the desired behavior
+    during development.
+    """
+    if provider.provider_name() in CACHELESS_PROVIDERS:
+        return await _load_cacheless(provider, options)
+
     cache = SpecCache(cache_dir, ttl_seconds=ttl_seconds)
 
     # --- Offline path: only use cache ---
@@ -117,6 +128,30 @@ async def load_specs(
     cache.save_index(fresh_index, provider_name=provider.provider_name())
     cache.cleanup(keep={e.name for e in fresh_index})
 
+    return loaded
+
+
+async def _load_cacheless(provider: SpecProvider, options: LoadOptions) -> list[LoadedSpec]:
+    """Fetch directly from a provider without touching the on-disk cache.
+
+    Used for dev providers (LocalDirProvider) where caching would hide
+    changes the developer just made. `--offline` is irrelevant here — the
+    source is already local.
+    """
+    if options.offline:
+        logger.warning(
+            "--offline has no effect with provider %r; reading source directly.",
+            provider.provider_name(),
+        )
+    refs = await provider.list_products()
+    loaded: list[LoadedSpec] = []
+    for ref in refs:
+        try:
+            spec = await provider.fetch_spec(ref)
+        except (SpecFetchError, SpecExtractionError) as e:
+            logger.warning("Failed to load spec for %r: %s. Skipping.", ref.name, e)
+            continue
+        loaded.append(LoadedSpec(ref.name, ref.display_name, spec))
     return loaded
 
 
