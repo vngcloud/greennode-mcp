@@ -53,6 +53,17 @@ Execute any VNG Cloud REST API call with automatic IAM auth.
 - list_api_versions: List available API versions
 - manage_k8s_resource: CRUD single K8s resource (requires --allow-write for writes, --allow-sensitive-data-access for Secrets)
 - apply_yaml: Apply YAML manifest (requires --allow-write)
+
+## Display rules
+
+When presenting results to the user:
+
+- **Never truncate resource identifiers** (IDs, UUIDs, ARNs, names, certificate
+  data, kubeconfigs, tokens). Always show the full value even if the table looks
+  wide. Users need to copy/paste these as-is.
+- Truncation like `net-05934e2d...` is wrong — the user cannot use that value.
+- If a table is too wide for the terminal, prefer a vertical key/value layout
+  or a bulleted list over shortening IDs.
 """
 
 mcp = None
