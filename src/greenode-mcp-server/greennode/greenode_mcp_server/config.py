@@ -9,15 +9,15 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class RegionEndpoints:
-    """Endpoints for a single VKS region."""
+    """Service endpoints for a single GreenNode region."""
 
     vks: str
     vserver: str
 
 
 @dataclass
-class VksConfig:
-    """Top-level VKS configuration."""
+class GreenodeConfig:
+    """Top-level GreenNode configuration."""
 
     client_id: str
     client_secret: str
@@ -52,8 +52,8 @@ REGIONS: dict[str, RegionEndpoints] = {
 }
 
 
-def load_config(config_dir: Path) -> VksConfig:
-    """Load VKS configuration from *config_dir*.
+def load_config(config_dir: Path) -> GreenodeConfig:
+    """Load GreenNode configuration from *config_dir*.
 
     Reads ``credentials`` and ``config`` INI files under *config_dir*.
     The profile is selected by the ``GRN_PROFILE`` environment variable
@@ -123,7 +123,7 @@ def load_config(config_dir: Path) -> VksConfig:
                 if file_project_id:
                     default_project_id = file_project_id
 
-    return VksConfig(
+    return GreenodeConfig(
         client_id=client_id,
         client_secret=client_secret,
         default_region=default_region,

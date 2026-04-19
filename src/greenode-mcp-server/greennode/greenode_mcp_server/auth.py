@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 
 IAM_TOKEN_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 
@@ -16,7 +16,7 @@ DEFAULT_TIMEOUT = 30  # seconds
 class TokenManager:
     """Manages IAM access tokens with auto-refresh via client credentials."""
 
-    def __init__(self, config: VksConfig) -> None:
+    def __init__(self, config: GreenodeConfig) -> None:
         self._config = config
         self._access_token = None
         self._expires_at = 0

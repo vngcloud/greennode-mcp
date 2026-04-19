@@ -5,13 +5,13 @@ import httpx
 
 from greennode.greenode_mcp_server.api_index import get_index
 from greennode.greenode_mcp_server.auth import TokenManager
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 
 DEFAULT_TIMEOUT = 30.0
 SAFE_METHODS = frozenset({"GET", "HEAD"})
 
 
-def _resolve_base_url(path: str, product: str | None, region: str, config: VksConfig) -> str:
+def _resolve_base_url(path: str, product: str | None, region: str, config: GreenodeConfig) -> str:
     """Find base URL for a path from the spec index.
 
     Matches by path prefix (handles template paths like /v1/clusters/{id}).
@@ -85,7 +85,7 @@ async def call_api(
     region: str | None,
     params: dict | None,
     body: dict | None,
-    config: VksConfig,
+    config: GreenodeConfig,
     token_manager: TokenManager,
     allow_write: bool,
 ) -> str:

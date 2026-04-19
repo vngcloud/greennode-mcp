@@ -10,7 +10,7 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 from greennode.greenode_mcp_server.client import GreenodeClient
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 from greennode.greenode_mcp_server.k8s_apis import K8sApis
 from greennode.greenode_mcp_server.k8s_client_cache import K8sClientCache
 from greennode.greenode_mcp_server.models import (
@@ -178,7 +178,7 @@ class K8sHandler:
     def __init__(
         self,
         mcp,
-        config: VksConfig,
+        config: GreenodeConfig,
         vks_client: GreenodeClient,
         allow_write: bool = False,
         allow_sensitive_data_access: bool = False,
@@ -187,7 +187,7 @@ class K8sHandler:
 
         Args:
             mcp: The MCP server instance
-            config: VKS configuration
+            config: GreenNode configuration
             vks_client: GreenNode HTTP client
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
