@@ -179,7 +179,14 @@ def main() -> None:
         params: Annotated[dict | None, "Query parameters as a JSON object"] = None,
         body: Annotated[dict | None, "Request body as a JSON object (for POST/PUT/PATCH)"] = None,
     ) -> str:
-        """Execute any VNG Cloud REST API call. IAM auth token is injected automatically. Use search_api first to find the correct endpoint and required parameters."""
+        """Execute any VNG Cloud REST API call. IAM auth token is injected automatically.
+
+Use search_api first to find the correct endpoint and required parameters.
+
+**Pagination convention:** VNG Cloud APIs are 1-based — use `page=1` for the first page
+(not `page=0`). Common param names: `page`, `size` (or `pageSize` in some products).
+If the API returns `400 Page or size invalid`, try `page=1, size=10` or omit pagination
+entirely to get backend defaults."""
         return await _call_api(
             method, path, product, region, params, body,
             config, token_manager, args.allow_write,

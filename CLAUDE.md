@@ -45,7 +45,7 @@ greenode-mcp/
 ## VNG Cloud API quirks
 
 - **IAM API uses camelCase**: `grantType`, `accessToken`, `expiresIn` (not snake_case OAuth2 standard)
-- **VKS API pagination is 0-based**: page 0 = first page
+- **Pagination is 1-based across VNG Cloud APIs**: page 1 = first page (standard convention for all products)
 - **API returns 202** for most successful operations (not 200)
 
 ## Adding a new tool (to existing server)
