@@ -277,3 +277,73 @@ async def test_timeout_returns_error_message(mock_config, mock_token_manager):
         )
         result = await _call("GET", "/v1/clusters", config=mock_config, token_manager=mock_token_manager)
     assert "timed out" in result.lower()
+
+
+# --- project_id auto-substitution ---
+
+async def test_project_id_placeholder_substituted(mock_config, mock_token_manager):
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(return_value="pro-abc")
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v2/pro-abc/networks").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v2/{projectId}/networks", None, None, None, None,
+            mock_config, mock_token_manager, False, project_context=pc,
+        )
+    assert route.called
+    pc.get_project_id.assert_called_once()
+
+
+async def test_project_id_snake_case_placeholder_substituted(mock_config, mock_token_manager):
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(return_value="pro-xyz")
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v1/pro-xyz/flavors").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v1/{project_id}/flavors", None, None, None, None,
+            mock_config, mock_token_manager, False, project_context=pc,
+        )
+    assert route.called
+
+
+async def test_no_substitution_when_placeholder_absent(mock_config, mock_token_manager):
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(return_value="pro-abc")
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False, project_context=pc,
+        )
+    pc.get_project_id.assert_not_called()
+
+
+async def test_project_id_fetch_failure_returns_error(mock_config, mock_token_manager):
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(side_effect=RuntimeError("no projects"))
+    result = await call_api(
+        "GET", "/v2/{projectId}/networks", None, None, None, None,
+        mock_config, mock_token_manager, False, project_context=pc,
+    )
+    assert "failed to resolve project_id" in result.lower()
+    assert "no projects" in result
+
+
+async def test_no_project_context_falls_through(mock_config, mock_token_manager):
+    """If no ProjectContext supplied, path with placeholder is passed through as-is."""
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v2/%7BprojectId%7D/networks").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v2/{projectId}/networks", None, None, None, None,
+            mock_config, mock_token_manager, False, project_context=None,
+        )
+    # Request still went through (server would 404 but httpx sent it)
+    assert route.called

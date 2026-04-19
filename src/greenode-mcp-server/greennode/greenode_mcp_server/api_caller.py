@@ -88,6 +88,7 @@ async def call_api(
     config: VksConfig,
     token_manager: TokenManager,
     allow_write: bool,
+    project_context=None,
 ) -> str:
     """Execute a VNG Cloud REST API call with automatic auth injection."""
     method = method.upper()
@@ -106,6 +107,17 @@ async def call_api(
         return "Error: path traversal not allowed"
 
     resolved_region = region or config.default_region
+
+    # Auto-substitute project_id placeholders
+    if project_context is not None and (
+        "{projectId}" in path or "{project_id}" in path
+    ):
+        try:
+            project_id = await project_context.get_project_id(resolved_region)
+        except Exception as exc:
+            return f"Error: failed to resolve project_id: {exc}"
+        path = path.replace("{projectId}", project_id).replace("{project_id}", project_id)
+
     base_url = _resolve_base_url(path, product, resolved_region, config)
     url = base_url + path
 
