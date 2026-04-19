@@ -58,6 +58,7 @@ def _reset():
 def mock_config():
     config = MagicMock()
     config.default_region = "HCM-3"
+    config.default_project_id = None
     endpoints = MagicMock()
     endpoints.vks = "https://vks.api.vngcloud.vn"
     config.get_endpoints.return_value = endpoints
@@ -335,15 +336,47 @@ async def test_project_id_fetch_failure_returns_error(mock_config, mock_token_ma
     assert "no projects" in result
 
 
-async def test_no_project_context_falls_through(mock_config, mock_token_manager):
-    """If no ProjectContext supplied, path with placeholder is passed through as-is."""
+async def test_config_project_id_preferred_over_context(mock_config, mock_token_manager):
+    """When config has a default_project_id, skip the API fetch."""
+    mock_config.default_project_id = "pro-from-config"
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(return_value="pro-from-api")
     with respx.mock:
-        route = respx.get("https://vks.api.vngcloud.vn/v2/%7BprojectId%7D/networks").mock(
+        route = respx.get("https://vks.api.vngcloud.vn/v2/pro-from-config/networks").mock(
             return_value=httpx.Response(200, json={"items": []})
         )
         await call_api(
             "GET", "/v2/{projectId}/networks", None, None, None, None,
-            mock_config, mock_token_manager, False, project_context=None,
+            mock_config, mock_token_manager, False, project_context=pc,
         )
-    # Request still went through (server would 404 but httpx sent it)
     assert route.called
+    pc.get_project_id.assert_not_called()
+
+
+async def test_context_fallback_when_config_project_id_empty(mock_config, mock_token_manager):
+    """Fallback: when config has no project_id, use ProjectContext."""
+    mock_config.default_project_id = None
+    pc = MagicMock()
+    pc.get_project_id = AsyncMock(return_value="pro-from-api")
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v2/pro-from-api/networks").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v2/{projectId}/networks", None, None, None, None,
+            mock_config, mock_token_manager, False, project_context=pc,
+        )
+    assert route.called
+    pc.get_project_id.assert_called_once()
+
+
+async def test_no_project_id_anywhere_returns_error(mock_config, mock_token_manager):
+    """When neither config nor context can resolve, return actionable error."""
+    mock_config.default_project_id = None
+    result = await call_api(
+        "GET", "/v2/{projectId}/networks", None, None, None, None,
+        mock_config, mock_token_manager, False, project_context=None,
+    )
+    assert "project_id not configured" in result
+    assert "grn configure" in result
+    assert "GRN_DEFAULT_PROJECT_ID" in result

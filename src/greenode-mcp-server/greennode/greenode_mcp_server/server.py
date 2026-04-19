@@ -188,7 +188,9 @@ def main() -> None:
 Use search_api first to find the correct endpoint and required parameters.
 
 **Path placeholders:** Leave `{projectId}` / `{project_id}` as-is in the path.
-The server resolves the user's project automatically from vServer /v1/projects.
+The server resolves the user's project automatically — from `~/.greenode/config`
+(saved by `grn configure`) or the `GRN_DEFAULT_PROJECT_ID` env var, with fallback
+to fetching from vServer /v1/projects.
 Example: pass `/v2/{projectId}/networks` — no manual substitution needed.
 
 **Pagination convention:** VNG Cloud APIs are 1-based — use `page=1` for the first page

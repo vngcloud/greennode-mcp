@@ -108,14 +108,21 @@ async def call_api(
 
     resolved_region = region or config.default_region
 
-    # Auto-substitute project_id placeholders
-    if project_context is not None and (
-        "{projectId}" in path or "{project_id}" in path
-    ):
-        try:
-            project_id = await project_context.get_project_id(resolved_region)
-        except Exception as exc:
-            return f"Error: failed to resolve project_id: {exc}"
+    # Auto-substitute project_id placeholders.
+    # Prefer config.default_project_id (from greenode-cli config or
+    # GRN_DEFAULT_PROJECT_ID env) over API fetch for speed.
+    if "{projectId}" in path or "{project_id}" in path:
+        project_id = config.default_project_id
+        if not project_id and project_context is not None:
+            try:
+                project_id = await project_context.get_project_id(resolved_region)
+            except Exception as exc:
+                return f"Error: failed to resolve project_id: {exc}"
+        if not project_id:
+            return (
+                "Error: project_id not configured. Run 'grn configure' to set it, "
+                "or export GRN_DEFAULT_PROJECT_ID=pro-xxxxxxxx."
+            )
         path = path.replace("{projectId}", project_id).replace("{project_id}", project_id)
 
     base_url = _resolve_base_url(path, product, resolved_region, config)
