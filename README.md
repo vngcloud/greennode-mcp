@@ -26,18 +26,23 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) lets AI assistant
 export GRN_ACCESS_KEY_ID=your-client-id
 export GRN_SECRET_ACCESS_KEY=your-client-secret
 export GRN_DEFAULT_REGION=HCM-3
+export GRN_DEFAULT_PROJECT_ID=pro-xxxxxxxx   # required for many APIs that embed project in the URL
 ```
 
-**Option B: Credentials file (via GreenNode CLI)**
+**Option B: GreenNode CLI (recommended)**
 
 ```bash
-pip install grncli
 grn configure
 ```
 
-This creates `~/.greenode/credentials` which all MCP servers read automatically. Environment variables take priority over the credentials file.
+The wizard auto-detects your `project_id` and writes:
 
-> **Note:** All MCP servers require credentials configured via one of these methods.
+- `~/.greenode/credentials` — `client_id`, `client_secret`
+- `~/.greenode/config` — `region`, `project_id`, `output`
+
+See [greenode-cli](https://github.com/vngcloud/greennode-cli).
+
+Environment variables take priority over the files. All MCP servers in this repo read these same paths and env vars.
 
 ## Quick Start
 
@@ -95,7 +100,7 @@ See [GreenNode MCP Server](src/greenode-mcp-server/) as reference.
 All GreenNode MCP servers share these security principles:
 
 - **Read-only by default** — Write operations require explicit `--allow-write` flag
-- **Sensitive data protection** — Kubernetes Secrets require `--allow-sensitive-data-access`
+- **Sensitive data protection** — Reading Kubernetes Secrets requires `--allow-sensitive-data-access`; other K8s reads (pods, deployments, logs, events) are allowed by default
 - **Credential security** — `~/.greenode/credentials` stored with `0600` permissions
 - **Input validation** — All resource IDs validated to prevent path traversal
 - **Token handling** — In memory only, never written to disk or logged

@@ -11,7 +11,7 @@ GreenNode MCP Servers provide AI assistants (Claude, Cursor, Gemini, etc.) with 
 
 | Server | Package | Tools |
 |--------|---------|-------|
-| GreenNode MCP Server | `greennode.greenode_mcp_server` | search_api, call_api, 6 K8s tools |
+| GreenNode MCP Server | `greennode.greenode_mcp_server` | `search_api`, `call_api`, 6 K8s tools (`list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `list_api_versions`, `manage_k8s_resource`, `apply_yaml`) |
 
 ## Repository structure
 
@@ -47,6 +47,10 @@ greenode-mcp/
 - **IAM API uses camelCase**: `grantType`, `accessToken`, `expiresIn` (not snake_case OAuth2 standard)
 - **Pagination is 1-based across VNG Cloud APIs**: page 1 = first page (standard convention for all products)
 - **API returns 202** for most successful operations (not 200)
+- **List response wrapper keys vary**: `items`, `listData`, `data`, `results`, `records` — the formatter in `api_caller.py` recognises all of them
+- **`{projectId}` / `{project_id}` path placeholders** are auto-substituted by `call_api` from `config.default_project_id` (set by `grn configure` or `GRN_DEFAULT_PROJECT_ID` env var)
+- **K8s `api_version`** is optional for common kinds (Pod, Deployment, PVC, ...) via `COMMON_API_VERSIONS` in `k8s_handler.py`; custom resources still need it explicit
+- **VKS kubeconfig endpoint** returns `{kubeConfig: "<yaml>", status: "ACTIVE"|"CREATING"|...}` — not raw YAML. `k8s_client_cache.py` extracts the `kubeConfig` field and checks `status`
 
 ## Adding a new tool (to existing server)
 
@@ -76,8 +80,10 @@ See `src/greenode-mcp-server/` as reference.
 
 - **Input validation**: All resource IDs validated via `validators.validate_id()` before URL construction — prevents path traversal
 - **Write guard**: Mutating operations must check `self.allow_write` flag
-- **Sensitive data guard**: K8s Secret reads must check `self.allow_sensitive_data_access`
-- **Credential env vars supported**: `GRN_ACCESS_KEY_ID`/`GRN_SECRET_ACCESS_KEY` override credentials file (highest priority)
+- **Sensitive data guard**: Only K8s Secret reads check `self.allow_sensitive_data_access`. Pod logs and K8s events are NOT guarded — they're routine debug reads
+- **Credential env vars supported**: `GRN_ACCESS_KEY_ID`/`GRN_SECRET_ACCESS_KEY` override credentials file; `GRN_DEFAULT_PROJECT_ID` overrides config file `project_id` (highest priority)
+- **Response size cap**: `call_api` rejects responses > 800 KB with an actionable error — prevents context blow-up
+- **Row cap**: list responses truncate at 100 rows by default (with a footer telling the caller to paginate)
 - **Tokens in memory only**: Never written to disk or logged
 - **Credentials not logged**: Error messages and debug logs never include tokens or secrets
 - **Timeout**: All HTTP requests have 30s timeout
@@ -94,9 +100,10 @@ uv sync --all-extras
 uv run python -m pytest tests/ -v
 ```
 
-- 65 tests for GreenNode MCP Server
+- ~175 tests for GreenNode MCP Server
 - Uses `respx` for mocking async HTTP calls
 - Uses `pytest-asyncio` for async test support
+- MCP protocol smoke test: `python3 scripts/mcp_protocol_smoke.py` (runs the server via stdio, walks initialize → tools/list → tools/call)
 
 ## Git workflow
 
@@ -143,7 +150,7 @@ Code without docs is not done.
 | `greennode/greenode_mcp_server/registry/local_dir.py` | Dev/test provider — reads specs from `GRN_MCP_SPEC_DIR` |
 | `greennode/greenode_mcp_server/registry/cache.py` | On-disk spec cache at `~/.greenode/mcp-specs/` with TTL + ETag |
 | `greennode/greenode_mcp_server/registry/loader.py` | Orchestrator — ties provider + cache + CLI flags together |
-| `greennode/greenode_mcp_server/config.py` | Config loading, REGIONS dict |
+| `greennode/greenode_mcp_server/config.py` | `GreenodeConfig` loader — reads `~/.greenode/credentials` + `~/.greenode/config` (incl. `project_id`), env-var overrides, REGIONS dict |
 | `greennode/greenode_mcp_server/auth.py` | TokenManager — async OAuth2 with auto-refresh |
 | `greennode/greenode_mcp_server/client.py` | GreenodeClient — used by K8s handler for kubeconfig fetch |
 | `greennode/greenode_mcp_server/k8s_handler.py` | 6 K8s tools |
@@ -157,7 +164,9 @@ Both projects share:
 - Same config files (`~/.greenode/credentials`, `~/.greenode/config`)
 - Same REGIONS dict (HCM-3, HAN endpoints)
 - Same IAM auth flow (camelCase fields)
-- Same env var names (`GRN_ACCESS_KEY_ID`, `GRN_SECRET_ACCESS_KEY`, `GRN_PROFILE`, `GRN_DEFAULT_REGION`, etc.)
+- Same env var names (`GRN_ACCESS_KEY_ID`, `GRN_SECRET_ACCESS_KEY`, `GRN_PROFILE`, `GRN_DEFAULT_REGION`, `GRN_DEFAULT_PROJECT_ID`)
+- Same profile section convention (`[default]` vs `[profile <name>]` in the config file, AWS-style)
+- `grn configure` auto-detects `project_id` and writes it to `~/.greenode/config` — MCP reads that value without a separate API call
 
 Key differences:
 - greenode-mcp is **async**, greenode-cli is **sync**

@@ -24,16 +24,25 @@ MCP (Model Context Protocol) Server for VNG Cloud. Provides AI assistants with t
 export GRN_ACCESS_KEY_ID=your-client-id
 export GRN_SECRET_ACCESS_KEY=your-client-secret
 export GRN_DEFAULT_REGION=HCM-3
+export GRN_DEFAULT_PROJECT_ID=pro-xxxxxxxx   # substituted into {projectId} paths
 ```
 
-**Option B: Credentials file (via GreenNode CLI)**
+**Option B: GreenNode CLI (recommended)**
 
 ```bash
-pip install grncli
 grn configure
 ```
 
-This creates `~/.greenode/credentials` which the server reads automatically.
+The wizard auto-detects and saves your `project_id` alongside credentials:
+
+- `~/.greenode/credentials` — `client_id`, `client_secret`
+- `~/.greenode/config` — `region`, `project_id`, `output`
+
+See [greenode-cli](https://github.com/vngcloud/greennode-cli) for install instructions.
+
+### Profiles
+
+Both the credentials and config files support profile sections. Select one via `GRN_PROFILE=<name>`. Each profile gets its own region and `project_id`, so switching profile switches every identity detail in one move.
 
 ## Quickstart
 
@@ -73,6 +82,28 @@ Execute any VNG Cloud REST API call. IAM auth token is injected automatically.
 call_api(method="GET", path="/v1/clusters")
 call_api(method="POST", path="/v1/clusters", body={"name": "my-cluster", ...})
 ```
+
+**Path placeholders:** Leave `{projectId}` / `{project_id}` in the path — the server
+substitutes your project UUID from `~/.greenode/config` (set by `grn configure`) or
+`GRN_DEFAULT_PROJECT_ID`.
+
+```
+call_api(method="GET", path="/v2/{projectId}/networks", product="vserver")
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `method` | `str` | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| `path` | `str` | API path, e.g. `/v1/clusters` |
+| `product` | `str?` | `vks`, `vlb`, `vserver`, ... (helps resolve the base URL) |
+| `region` | `str?` | `HCM-3` or `HAN` (default: from config) |
+| `params` | `dict?` | Query params (pagination is 1-based: `page=1` is first page) |
+| `body` | `dict?` | JSON body for POST/PUT/PATCH |
+| `raw` | `bool` | `True` returns full JSON; default formats list → markdown table (first 6 columns, top 100 rows) |
+
+Response size is capped at 800 KB — if the API returns more, `call_api` asks you to paginate.
 
 ### Kubernetes Resource Management
 
