@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+### Fixes
+* Restore loose Ingress assertion in `test_status_summary.py` — the CodeQL autofix bot had rewritten it as strict equality with a missing separator space, causing CI to fail on the v0.4.0 tag. No runtime behavior change.
+
 ## 0.4.0
 
 ### Features
