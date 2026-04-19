@@ -1,6 +1,8 @@
 """call_api tool — authenticated REST API calls to any VNG Cloud product."""
 from __future__ import annotations
 
+import json
+
 import httpx
 
 from greennode.greenode_mcp_server.api_index import get_index
@@ -9,6 +11,11 @@ from greennode.greenode_mcp_server.config import GreenodeConfig
 
 DEFAULT_TIMEOUT = 30.0
 SAFE_METHODS = frozenset({"GET", "HEAD"})
+
+# Hard cap on serialized response size (formatted markdown OR raw JSON).
+# Matches Cloudflare's graphql tool guard (800KB) — stays well under the
+# typical 1MB tool-result limit of MCP clients.
+MAX_RESPONSE_BYTES = 800_000
 
 
 def _resolve_base_url(path: str, product: str | None, region: str, config: GreenodeConfig) -> str:
@@ -29,7 +36,7 @@ def _resolve_base_url(path: str, product: str | None, region: str, config: Green
     return endpoints.vks.rstrip("/")
 
 
-MAX_LIST_ROWS = 30  # truncate large lists to keep LLM context manageable
+MAX_LIST_ROWS = 100  # truncate large lists to keep LLM context manageable (matches Cloudflare logpush)
 
 # VNG Cloud APIs use different keys to wrap list payloads.
 LIST_KEYS = ("items", "listData", "data", "results", "records")
@@ -88,6 +95,7 @@ async def call_api(
     config: GreenodeConfig,
     token_manager: TokenManager,
     allow_write: bool,
+    raw: bool = False,
 ) -> str:
     """Execute a VNG Cloud REST API call with automatic auth injection."""
     method = method.upper()
@@ -140,7 +148,18 @@ async def call_api(
             msg = data.get("message") or data.get("error") or str(data)
             return f"Error {resp.status_code}: {msg}"
 
-        result = _format_response(data)
+        if raw:
+            result = json.dumps(data, ensure_ascii=False, indent=2)
+        else:
+            result = _format_response(data)
+
+        if len(result) > MAX_RESPONSE_BYTES:
+            return (
+                f"Error: response exceeds {MAX_RESPONSE_BYTES} bytes "
+                f"({len(result)} bytes). Add pagination params (page, pageSize) "
+                "or filter server-side via query params (name, status, etc.)."
+            )
+
         if resp.status_code == 202:
             return f"Operation accepted (202).\n{result}"
         return result

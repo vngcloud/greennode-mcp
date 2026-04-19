@@ -178,6 +178,10 @@ def main() -> None:
         region: Annotated[str | None, "Region: HCM-3 or HAN (default: from config)"] = None,
         params: Annotated[dict | None, "Query parameters as a JSON object"] = None,
         body: Annotated[dict | None, "Request body as a JSON object (for POST/PUT/PATCH)"] = None,
+        raw: Annotated[
+            bool,
+            "Return the full raw JSON response instead of the default markdown summary (first 6 columns, top 100 rows). Use when you need fields hidden by the summary or want to transform the data yourself."
+        ] = False,
     ) -> str:
         """Execute any VNG Cloud REST API call. IAM auth token is injected automatically.
 
@@ -193,10 +197,16 @@ to run `grn configure`.
 **Pagination convention:** VNG Cloud APIs are 1-based — use `page=1` for the first page
 (not `page=0`). Common param names: `page`, `size` (or `pageSize` in some products).
 If the API returns `400 Page or size invalid`, try `page=1, size=10` or omit pagination
-entirely to get backend defaults."""
+entirely to get backend defaults.
+
+**Response shape:**
+- Default: markdown summary (list → 6-column table, top 100 rows; object → key/value)
+- `raw=True`: full JSON — every field, every row (subject to 800KB cap)
+- If response exceeds 800KB, the tool returns an error asking you to paginate."""
         return await _call_api(
             method, path, product, region, params, body,
             config, token_manager, args.allow_write,
+            raw=raw,
         )
 
     # --- K8s tools ---

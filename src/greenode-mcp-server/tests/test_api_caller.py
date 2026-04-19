@@ -222,14 +222,14 @@ def test_format_response_results_key():
 
 
 def test_format_list_truncates_long_lists():
-    items = [{"id": i, "name": f"item-{i}"} for i in range(100)]
+    items = [{"id": i, "name": f"item-{i}"} for i in range(150)]
     result = _format_list(items)
-    # Only first 30 shown
+    # Only first 100 shown
     assert "item-0" in result
-    assert "item-29" in result
-    assert "item-30" not in result
+    assert "item-99" in result
+    assert "item-100" not in result
     # Truncation footer present
-    assert "Showing 30 of 100" in result
+    assert "Showing 100 of 150" in result
 
 
 def test_format_list_no_truncation_footer_when_small():
@@ -239,12 +239,12 @@ def test_format_list_no_truncation_footer_when_small():
 
 
 def test_format_list_scalar_items_truncated():
-    items = [f"str-{i}" for i in range(50)]
+    items = [f"str-{i}" for i in range(150)]
     result = _format_list(items)
     assert "str-0" in result
-    assert "str-29" in result
-    assert "str-30" not in result
-    assert "Showing 30 of 50" in result
+    assert "str-99" in result
+    assert "str-100" not in result
+    assert "Showing 100 of 150" in result
 
 
 # --- HTTP responses ---
@@ -331,3 +331,50 @@ async def test_missing_project_id_returns_actionable_error(mock_config, mock_tok
     assert "project_id not configured" in result
     assert "grn configure" in result
     assert "GRN_DEFAULT_PROJECT_ID" in result
+
+
+# --- raw response + size guard ---
+
+async def test_raw_true_returns_json(mock_config, mock_token_manager):
+    """raw=True skips markdown formatting and returns JSON."""
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": [{"id": "c1", "hidden_field": "x"}]})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False, raw=True,
+        )
+    # Should be JSON — every field visible including ones beyond the 6-column default
+    import json as _json
+    parsed = _json.loads(result)
+    assert parsed["items"][0]["hidden_field"] == "x"
+
+
+async def test_raw_false_returns_markdown_table(mock_config, mock_token_manager):
+    """Default raw=False keeps current markdown behavior."""
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": [{"id": "c1", "name": "my-cluster"}]})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False,
+        )
+    assert "|" in result  # markdown table
+
+
+async def test_response_size_guard_triggers_when_too_large(mock_config, mock_token_manager):
+    """Responses exceeding MAX_RESPONSE_BYTES return an actionable error."""
+    # Build a list big enough that raw JSON exceeds 800KB
+    big_items = [{"id": f"id-{i}", "blob": "x" * 1000} for i in range(900)]
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": big_items})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False, raw=True,
+        )
+    assert "exceeds" in result
+    assert "pagination" in result.lower()
