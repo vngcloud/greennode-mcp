@@ -140,10 +140,6 @@ def main() -> None:
     token_manager = TokenManager(config)
     client = GreenodeClient(config, token_manager)  # used by K8s handler only
 
-    # Auto-fetch project_id on first call_api that needs it
-    from greennode.greenode_mcp_server.project_context import ProjectContext
-    project_context = ProjectContext(config, token_manager)
-
     # Initialize spec registry (fetches/loads specs before tools are registered)
     from greennode.greenode_mcp_server.api_index import initialize_index
     initialize_index(refresh=args.refresh_specs, offline=args.offline)
@@ -188,10 +184,11 @@ def main() -> None:
 Use search_api first to find the correct endpoint and required parameters.
 
 **Path placeholders:** Leave `{projectId}` / `{project_id}` as-is in the path.
-The server resolves the user's project automatically — from `~/.greenode/config`
-(saved by `grn configure`) or the `GRN_DEFAULT_PROJECT_ID` env var, with fallback
-to fetching from vServer /v1/projects.
+The server substitutes the user's project automatically from `~/.greenode/config`
+(saved by `grn configure`) or `GRN_DEFAULT_PROJECT_ID` env var.
 Example: pass `/v2/{projectId}/networks` — no manual substitution needed.
+If project_id isn't configured, the tool returns a clear error telling the user
+to run `grn configure`.
 
 **Pagination convention:** VNG Cloud APIs are 1-based — use `page=1` for the first page
 (not `page=0`). Common param names: `page`, `size` (or `pageSize` in some products).
@@ -200,7 +197,6 @@ entirely to get backend defaults."""
         return await _call_api(
             method, path, product, region, params, body,
             config, token_manager, args.allow_write,
-            project_context=project_context,
         )
 
     # --- K8s tools ---
