@@ -138,15 +138,37 @@ def _stem(term: str) -> str:
     return term
 
 
-def _variants(term: str) -> tuple[str, str]:
-    """Return (term, stemmed). If stem == term, both are the same."""
-    return term, _stem(term)
+# Cloud terminology varies. VNG Cloud specs use names that differ from
+# user habits (AWS/GCP-influenced). Keep this list small and concrete —
+# only proven sources of query failure, not speculative coverage.
+SYNONYMS: dict[str, list[str]] = {
+    "vpc": ["network"],             # VNG Cloud calls VPC "Network"
+    "instance": ["server"],         # VNG Cloud calls instance "Server"
+    "firewall": ["secgroup", "security"],
+    "pvc": ["persistentvolumeclaim"],
+    "k8s": ["kubernetes"],
+    "lb": ["loadbalancer"],
+    "loadbalancer": ["lb"],
+}
 
 
-def _matches(entry: EndpointEntry, term: str, stem: str) -> bool:
-    """Return True if either term or its stem appears anywhere in the entry."""
-    hay = f"{entry.product} {entry.method} {entry.path} {entry.summary} {entry.description}".lower()
-    return term in hay or (stem != term and stem in hay)
+def _term_variants(term: str) -> list[str]:
+    """All acceptable substitutes for this term: term + stem + synonyms."""
+    out = [term]
+    stem = _stem(term)
+    if stem != term:
+        out.append(stem)
+    for syn in SYNONYMS.get(term, []):
+        out.append(syn)
+        syn_stem = _stem(syn)
+        if syn_stem != syn:
+            out.append(syn_stem)
+    return out
+
+
+def _term_matches(hay: str, term: str) -> bool:
+    """True if any variant of `term` appears in `hay`."""
+    return any(v in hay for v in _term_variants(term))
 
 
 def _score(entry: EndpointEntry, terms: list[str]) -> int:
@@ -157,27 +179,27 @@ def _score(entry: EndpointEntry, terms: list[str]) -> int:
     desc = entry.description.lower()
     prod = entry.product.lower()
     for term in terms:
-        _, stem = _variants(term)
-        if term in summary or (stem != term and stem in summary):
+        variants = _term_variants(term)
+        if any(v in summary for v in variants):
             score += 3
-        if term in path or (stem != term and stem in path):
+        if any(v in path for v in variants):
             score += 2
-        if term in desc or (stem != term and stem in desc):
+        if any(v in desc for v in variants):
             score += 1
-        if term in prod:
+        if any(v in prod for v in variants):
             score += 1
     return score
 
 
 def _filter(entries: list[EndpointEntry], terms: list[str], require_all: bool) -> list[EndpointEntry]:
-    variants = [_variants(t) for t in terms]
     matched: list[EndpointEntry] = []
     for e in entries:
+        hay = f"{e.product} {e.method} {e.path} {e.summary} {e.description}".lower()
         if require_all:
-            if all(_matches(e, t, s) for t, s in variants):
+            if all(_term_matches(hay, t) for t in terms):
                 matched.append(e)
         else:
-            if any(_matches(e, t, s) for t, s in variants):
+            if any(_term_matches(hay, t) for t in terms):
                 matched.append(e)
     return matched
 

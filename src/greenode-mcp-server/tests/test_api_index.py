@@ -232,3 +232,39 @@ def test_search_ranks_summary_match_higher():
     _setup(entries)
     results = search("cluster")
     assert results[0].summary == "manage cluster"
+
+
+def test_search_synonym_vpc_matches_network():
+    """Query 'vpc' should find endpoints with 'network' (VNG Cloud terminology)."""
+    entries = [
+        EndpointEntry(product="vserver", method="GET", path="/v2/{projectId}/networks",
+                      summary="List networks", description=""),
+    ]
+    _setup(entries)
+    results = search("vpc")
+    assert len(results) == 1
+    assert results[0].path == "/v2/{projectId}/networks"
+
+
+def test_search_synonym_instance_matches_server():
+    """Query 'instance' should find endpoints with 'server'."""
+    entries = [
+        EndpointEntry(product="vserver", method="GET", path="/v2/{projectId}/servers",
+                      summary="List servers", description=""),
+    ]
+    _setup(entries)
+    assert len(search("instance")) == 1
+
+
+def test_search_synonym_keeps_and_logic():
+    """Multi-term query with synonym: 'list vpc' requires both 'list' AND ('vpc' OR 'network')."""
+    entries = [
+        EndpointEntry(product="vserver", method="GET", path="/v2/{projectId}/networks",
+                      summary="List networks", description=""),
+        EndpointEntry(product="vserver", method="POST", path="/v2/{projectId}/servers",
+                      summary="Create server", description=""),  # no "list"
+    ]
+    _setup(entries)
+    results = search("list vpc")
+    assert len(results) == 1
+    assert results[0].path == "/v2/{projectId}/networks"
