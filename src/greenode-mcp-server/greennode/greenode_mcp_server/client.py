@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from greennode.greenode_mcp_server.auth import TokenManager
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 
 LOG = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ DEFAULT_TIMEOUT = 30  # seconds
 class GreenodeClient:
     """Thin async HTTP client for VNG Cloud APIs."""
 
-    def __init__(self, config: VksConfig, token_manager: TokenManager) -> None:
+    def __init__(self, config: GreenodeConfig, token_manager: TokenManager) -> None:
         self._config = config
         self._token_manager = token_manager
 

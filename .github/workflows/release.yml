@@ -70,6 +70,19 @@ jobs:
             exit 1
           fi
 
+      - name: Bake docs portal URL
+        working-directory: src/greenode-mcp-server
+        env:
+          DOCS_PORTAL_URL: ${{ vars.DOCS_PORTAL_URL || 'https://docs.api.vngcloud.vn' }}
+        run: |
+          cat > greennode/greenode_mcp_server/_build_info.py <<EOF
+          """Build-time configuration baked by CI."""
+          from __future__ import annotations
+
+          DEFAULT_DOCS_PORTAL_URL = "${DOCS_PORTAL_URL}"
+          EOF
+          echo "Baked DEFAULT_DOCS_PORTAL_URL=${DOCS_PORTAL_URL}"
+
       - name: Build package
         working-directory: src/greenode-mcp-server
         run: uv build

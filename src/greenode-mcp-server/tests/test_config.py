@@ -72,3 +72,59 @@ def test_load_config_default_region_when_no_config_file(tmp_path):
     credentials.write_text("[default]\nclient_id = my-id\nclient_secret = my-secret\n")
     cfg = load_config(greenode_dir)
     assert cfg.default_region == "HCM-3"
+
+
+# --- project_id ---
+
+def test_load_config_project_id_from_file(tmp_path):
+    greenode_dir = tmp_path / ".greenode"
+    greenode_dir.mkdir()
+    (greenode_dir / "credentials").write_text(
+        "[default]\nclient_id = id\nclient_secret = secret\n"
+    )
+    (greenode_dir / "config").write_text(
+        "[default]\nregion = HCM-3\nproject_id = pro-from-file\n"
+    )
+    cfg = load_config(greenode_dir)
+    assert cfg.default_project_id == "pro-from-file"
+
+
+def test_load_config_project_id_env_overrides_file(tmp_path, monkeypatch):
+    greenode_dir = tmp_path / ".greenode"
+    greenode_dir.mkdir()
+    (greenode_dir / "credentials").write_text(
+        "[default]\nclient_id = id\nclient_secret = secret\n"
+    )
+    (greenode_dir / "config").write_text(
+        "[default]\nregion = HCM-3\nproject_id = pro-from-file\n"
+    )
+    monkeypatch.setenv("GRN_DEFAULT_PROJECT_ID", "pro-from-env")
+    cfg = load_config(greenode_dir)
+    assert cfg.default_project_id == "pro-from-env"
+
+
+def test_load_config_project_id_none_when_unset(tmp_path, monkeypatch):
+    monkeypatch.delenv("GRN_DEFAULT_PROJECT_ID", raising=False)
+    greenode_dir = tmp_path / ".greenode"
+    greenode_dir.mkdir()
+    (greenode_dir / "credentials").write_text(
+        "[default]\nclient_id = id\nclient_secret = secret\n"
+    )
+    cfg = load_config(greenode_dir)
+    assert cfg.default_project_id is None
+
+
+def test_load_config_non_default_profile_uses_profile_section(tmp_path, monkeypatch):
+    """greenode-cli writes non-default profiles under '[profile <name>]'."""
+    greenode_dir = tmp_path / ".greenode"
+    greenode_dir.mkdir()
+    (greenode_dir / "credentials").write_text(
+        "[work]\nclient_id = work-id\nclient_secret = work-secret\n"
+    )
+    (greenode_dir / "config").write_text(
+        "[profile work]\nregion = HAN\nproject_id = pro-work\n"
+    )
+    monkeypatch.setenv("GRN_PROFILE", "work")
+    cfg = load_config(greenode_dir)
+    assert cfg.default_region == "HAN"
+    assert cfg.default_project_id == "pro-work"

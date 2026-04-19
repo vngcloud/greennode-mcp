@@ -54,6 +54,22 @@ def test_api_key_flag():
     assert _parse(["--api-key", "mysecret"]).api_key == "mysecret"
 
 
+def test_refresh_specs_default_false():
+    assert _parse([]).refresh_specs is False
+
+
+def test_refresh_specs_flag():
+    assert _parse(["--refresh-specs"]).refresh_specs is True
+
+
+def test_offline_default_false():
+    assert _parse([]).offline is False
+
+
+def test_offline_flag():
+    assert _parse(["--offline"]).offline is True
+
+
 def test_invalid_transport_raises():
     with pytest.raises(SystemExit):
         _parse(["--transport", "sse"])

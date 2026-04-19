@@ -13,12 +13,43 @@ from greennode.greenode_mcp_server.api_caller import (
     _format_response,
     call_api,
 )
-from greennode.greenode_mcp_server.api_index import reset_index
+from greennode.greenode_mcp_server.api_index import (
+    EndpointEntry,
+    reset_index,
+    set_index,
+)
 
 
 @pytest.fixture(autouse=True)
 def _reset():
     reset_index()
+    # Initialize with a minimal VKS spec for testing
+    set_index([
+        EndpointEntry(
+            product="vks",
+            method="GET",
+            path="/v1/clusters",
+            summary="List clusters",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+        EndpointEntry(
+            product="vks",
+            method="POST",
+            path="/v1/clusters",
+            summary="Create cluster",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+        EndpointEntry(
+            product="vks",
+            method="DELETE",
+            path="/v1/clusters/{cluster_id}",
+            summary="Delete cluster",
+            description="",
+            servers={"HCM-3": "https://vks.api.vngcloud.vn", "HAN": "https://vks.api.vngcloud.vn"},
+        ),
+    ])
     yield
     reset_index()
 
@@ -27,6 +58,7 @@ def _reset():
 def mock_config():
     config = MagicMock()
     config.default_region = "HCM-3"
+    config.default_project_id = None
     endpoints = MagicMock()
     endpoints.vks = "https://vks.api.vngcloud.vn"
     config.get_endpoints.return_value = endpoints
@@ -142,6 +174,14 @@ def test_format_object():
     result = _format_object({"uid": "abc", "name": "test"})
     assert "uid" in result
     assert "abc" in result
+    assert "**uid**" in result  # multi-field still uses bold
+
+
+def test_format_object_single_field_uses_plain_format():
+    """Single-field responses avoid markdown bold noise."""
+    result = _format_object({"status": "DELETING"})
+    assert result == "status: DELETING"
+    assert "**" not in result
 
 
 def test_format_response_with_items_key():
@@ -158,6 +198,53 @@ def test_format_response_plain_object():
 def test_format_response_list():
     result = _format_response([{"name": "item1"}])
     assert "item1" in result
+
+
+def test_format_response_listData_key_vserver_style():
+    """vServer APIs wrap lists under 'listData' key, not 'items'."""
+    data = {"listData": [{"id": "sg-1", "name": "secgroup-1"}], "total": 1}
+    result = _format_response(data)
+    assert "sg-1" in result
+    assert "|" in result  # markdown table, not object dump
+
+
+def test_format_response_data_key():
+    data = {"data": [{"name": "x"}]}
+    result = _format_response(data)
+    assert "x" in result
+    assert "|" in result
+
+
+def test_format_response_results_key():
+    data = {"results": [{"name": "y"}]}
+    result = _format_response(data)
+    assert "y" in result
+
+
+def test_format_list_truncates_long_lists():
+    items = [{"id": i, "name": f"item-{i}"} for i in range(150)]
+    result = _format_list(items)
+    # Only first 100 shown
+    assert "item-0" in result
+    assert "item-99" in result
+    assert "item-100" not in result
+    # Truncation footer present
+    assert "Showing 100 of 150" in result
+
+
+def test_format_list_no_truncation_footer_when_small():
+    items = [{"id": i} for i in range(10)]
+    result = _format_list(items)
+    assert "Showing" not in result
+
+
+def test_format_list_scalar_items_truncated():
+    items = [f"str-{i}" for i in range(150)]
+    result = _format_list(items)
+    assert "str-0" in result
+    assert "str-99" in result
+    assert "str-100" not in result
+    assert "Showing 100 of 150" in result
 
 
 # --- HTTP responses ---
@@ -191,3 +278,103 @@ async def test_timeout_returns_error_message(mock_config, mock_token_manager):
         )
         result = await _call("GET", "/v1/clusters", config=mock_config, token_manager=mock_token_manager)
     assert "timed out" in result.lower()
+
+
+# --- project_id auto-substitution ---
+
+async def test_project_id_placeholder_substituted_from_config(mock_config, mock_token_manager):
+    mock_config.default_project_id = "pro-abc"
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v2/pro-abc/networks").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v2/{projectId}/networks", None, None, None, None,
+            mock_config, mock_token_manager, False,
+        )
+    assert route.called
+
+
+async def test_project_id_snake_case_placeholder_substituted(mock_config, mock_token_manager):
+    mock_config.default_project_id = "pro-xyz"
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v1/pro-xyz/flavors").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v1/{project_id}/flavors", None, None, None, None,
+            mock_config, mock_token_manager, False,
+        )
+    assert route.called
+
+
+async def test_no_substitution_when_placeholder_absent(mock_config, mock_token_manager):
+    """Config has project_id but path doesn't need it — pass through unchanged."""
+    mock_config.default_project_id = "pro-abc"
+    with respx.mock:
+        route = respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False,
+        )
+    assert route.called
+
+
+async def test_missing_project_id_returns_actionable_error(mock_config, mock_token_manager):
+    mock_config.default_project_id = None
+    result = await call_api(
+        "GET", "/v2/{projectId}/networks", None, None, None, None,
+        mock_config, mock_token_manager, False,
+    )
+    assert "project_id not configured" in result
+    assert "grn configure" in result
+    assert "GRN_DEFAULT_PROJECT_ID" in result
+
+
+# --- raw response + size guard ---
+
+async def test_raw_true_returns_json(mock_config, mock_token_manager):
+    """raw=True skips markdown formatting and returns JSON."""
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": [{"id": "c1", "hidden_field": "x"}]})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False, raw=True,
+        )
+    # Should be JSON — every field visible including ones beyond the 6-column default
+    import json as _json
+    parsed = _json.loads(result)
+    assert parsed["items"][0]["hidden_field"] == "x"
+
+
+async def test_raw_false_returns_markdown_table(mock_config, mock_token_manager):
+    """Default raw=False keeps current markdown behavior."""
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": [{"id": "c1", "name": "my-cluster"}]})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False,
+        )
+    assert "|" in result  # markdown table
+
+
+async def test_response_size_guard_triggers_when_too_large(mock_config, mock_token_manager):
+    """Responses exceeding MAX_RESPONSE_BYTES return an actionable error."""
+    # Build a list big enough that raw JSON exceeds 800KB
+    big_items = [{"id": f"id-{i}", "blob": "x" * 1000} for i in range(900)]
+    with respx.mock:
+        respx.get("https://vks.api.vngcloud.vn/v1/clusters").mock(
+            return_value=httpx.Response(200, json={"items": big_items})
+        )
+        result = await call_api(
+            "GET", "/v1/clusters", None, None, None, None,
+            mock_config, mock_token_manager, False, raw=True,
+        )
+    assert "exceeds" in result
+    assert "pagination" in result.lower()

@@ -53,6 +53,17 @@ Execute any VNG Cloud REST API call with automatic IAM auth.
 - list_api_versions: List available API versions
 - manage_k8s_resource: CRUD single K8s resource (requires --allow-write for writes, --allow-sensitive-data-access for Secrets)
 - apply_yaml: Apply YAML manifest (requires --allow-write)
+
+## Display rules
+
+When presenting results to the user:
+
+- **Never truncate resource identifiers** (IDs, UUIDs, ARNs, names, certificate
+  data, kubeconfigs, tokens). Always show the full value even if the table looks
+  wide. Users need to copy/paste these as-is.
+- Truncation like `net-05934e2d...` is wrong — the user cannot use that value.
+- If a table is too wide for the terminal, prefer a vertical key/value layout
+  or a bulleted list over shortening IDs.
 """
 
 mcp = None
@@ -114,6 +125,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
     )
+    parser.add_argument(
+        "--refresh-specs",
+        action="store_true",
+        default=False,
+        help="Bypass cached specs and force re-download from the spec registry",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        default=False,
+        help="Do not contact the spec registry; use cached specs only",
+    )
     return parser
 
 
@@ -127,6 +150,10 @@ def main() -> None:
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
     client = GreenodeClient(config, token_manager)  # used by K8s handler only
+
+    # Initialize spec registry (fetches/loads specs before tools are registered)
+    from greennode.greenode_mcp_server.api_index import initialize_index
+    initialize_index(refresh=args.refresh_specs, offline=args.offline)
 
     mcp = FastMCP("greenode-mcp-server", instructions=SERVER_INSTRUCTIONS)
 
@@ -162,11 +189,35 @@ def main() -> None:
         region: Annotated[str | None, "Region: HCM-3 or HAN (default: from config)"] = None,
         params: Annotated[dict | None, "Query parameters as a JSON object"] = None,
         body: Annotated[dict | None, "Request body as a JSON object (for POST/PUT/PATCH)"] = None,
+        raw: Annotated[
+            bool,
+            "Return the full raw JSON response instead of the default markdown summary (first 6 columns, top 100 rows). Use when you need fields hidden by the summary or want to transform the data yourself."
+        ] = False,
     ) -> str:
-        """Execute any VNG Cloud REST API call. IAM auth token is injected automatically. Use search_api first to find the correct endpoint and required parameters."""
+        """Execute any VNG Cloud REST API call. IAM auth token is injected automatically.
+
+Use search_api first to find the correct endpoint and required parameters.
+
+**Path placeholders:** Leave `{projectId}` / `{project_id}` as-is in the path.
+The server substitutes the user's project automatically from `~/.greenode/config`
+(saved by `grn configure`) or `GRN_DEFAULT_PROJECT_ID` env var.
+Example: pass `/v2/{projectId}/networks` — no manual substitution needed.
+If project_id isn't configured, the tool returns a clear error telling the user
+to run `grn configure`.
+
+**Pagination convention:** VNG Cloud APIs are 1-based — use `page=1` for the first page
+(not `page=0`). Common param names: `page`, `size` (or `pageSize` in some products).
+If the API returns `400 Page or size invalid`, try `page=1, size=10` or omit pagination
+entirely to get backend defaults.
+
+**Response shape:**
+- Default: markdown summary (list → 6-column table, top 100 rows; object → key/value)
+- `raw=True`: full JSON — every field, every row (subject to 800KB cap)
+- If response exceeds 800KB, the tool returns an error asking you to paginate."""
         return await _call_api(
             method, path, product, region, params, body,
             config, token_manager, args.allow_write,
+            raw=raw,
         )
 
     # --- K8s tools ---

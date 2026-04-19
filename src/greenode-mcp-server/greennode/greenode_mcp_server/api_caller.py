@@ -1,17 +1,24 @@
 """call_api tool — authenticated REST API calls to any VNG Cloud product."""
 from __future__ import annotations
 
+import json
+
 import httpx
 
 from greennode.greenode_mcp_server.api_index import get_index
 from greennode.greenode_mcp_server.auth import TokenManager
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 
 DEFAULT_TIMEOUT = 30.0
 SAFE_METHODS = frozenset({"GET", "HEAD"})
 
+# Hard cap on serialized response size (formatted markdown OR raw JSON).
+# Matches Cloudflare's graphql tool guard (800KB) — stays well under the
+# typical 1MB tool-result limit of MCP clients.
+MAX_RESPONSE_BYTES = 800_000
 
-def _resolve_base_url(path: str, product: str | None, region: str, config: VksConfig) -> str:
+
+def _resolve_base_url(path: str, product: str | None, region: str, config: GreenodeConfig) -> str:
     """Find base URL for a path from the spec index.
 
     Matches by path prefix (handles template paths like /v1/clusters/{id}).
@@ -29,31 +36,49 @@ def _resolve_base_url(path: str, product: str | None, region: str, config: VksCo
     return endpoints.vks.rstrip("/")
 
 
+MAX_LIST_ROWS = 100  # truncate large lists to keep LLM context manageable (matches Cloudflare logpush)
+
+# VNG Cloud APIs use different keys to wrap list payloads.
+LIST_KEYS = ("items", "listData", "data", "results", "records")
+
+
 def _format_list(items: list) -> str:
     if not items:
         return "No items found."
     if not isinstance(items[0], dict):
-        return "\n".join(f"- {item}" for item in items)
+        shown = items[:MAX_LIST_ROWS]
+        result = "\n".join(f"- {item}" for item in shown)
+        if len(items) > MAX_LIST_ROWS:
+            result += f"\n\n_Showing {MAX_LIST_ROWS} of {len(items)} items. Use query params (page, pageSize, filters) to narrow the result._"
+        return result
     keys = list(items[0].keys())[:6]
+    shown = items[:MAX_LIST_ROWS]
     header = "| " + " | ".join(keys) + " |"
     sep = "|" + "|".join("---" for _ in keys) + "|"
     rows = [
         "| " + " | ".join(str(item.get(k, "")) for k in keys) + " |"
-        for item in items
+        for item in shown
     ]
-    return "\n".join([header, sep] + rows)
+    result = "\n".join([header, sep] + rows)
+    if len(items) > MAX_LIST_ROWS:
+        result += f"\n\n_Showing {MAX_LIST_ROWS} of {len(items)} items. Use query params (page, pageSize, filters) to narrow the result._"
+    return result
 
 
 def _format_object(obj: dict) -> str:
+    if len(obj) == 1:
+        k, v = next(iter(obj.items()))
+        return f"{k}: {v}"
     return "\n".join(f"**{k}**: {v}" for k, v in obj.items())
 
 
 def _format_response(data) -> str:
     """Best-effort markdown formatting of an API response."""
     if isinstance(data, dict):
-        items = data.get("items")
-        if isinstance(items, list):
-            return _format_list(items)
+        for key in LIST_KEYS:
+            value = data.get(key)
+            if isinstance(value, list):
+                return _format_list(value)
         return _format_object(data)
     if isinstance(data, list):
         return _format_list(data)
@@ -67,9 +92,10 @@ async def call_api(
     region: str | None,
     params: dict | None,
     body: dict | None,
-    config: VksConfig,
+    config: GreenodeConfig,
     token_manager: TokenManager,
     allow_write: bool,
+    raw: bool = False,
 ) -> str:
     """Execute a VNG Cloud REST API call with automatic auth injection."""
     method = method.upper()
@@ -88,6 +114,18 @@ async def call_api(
         return "Error: path traversal not allowed"
 
     resolved_region = region or config.default_region
+
+    # Auto-substitute {projectId} / {project_id} placeholders from config
+    # (~/.greenode/config written by `grn configure`, or GRN_DEFAULT_PROJECT_ID env).
+    if "{projectId}" in path or "{project_id}" in path:
+        project_id = config.default_project_id
+        if not project_id:
+            return (
+                "Error: project_id not configured. Run 'grn configure' to set it, "
+                "or export GRN_DEFAULT_PROJECT_ID=pro-xxxxxxxx."
+            )
+        path = path.replace("{projectId}", project_id).replace("{project_id}", project_id)
+
     base_url = _resolve_base_url(path, product, resolved_region, config)
     url = base_url + path
 
@@ -110,7 +148,18 @@ async def call_api(
             msg = data.get("message") or data.get("error") or str(data)
             return f"Error {resp.status_code}: {msg}"
 
-        result = _format_response(data)
+        if raw:
+            result = json.dumps(data, ensure_ascii=False, indent=2)
+        else:
+            result = _format_response(data)
+
+        if len(result) > MAX_RESPONSE_BYTES:
+            return (
+                f"Error: response exceeds {MAX_RESPONSE_BYTES} bytes "
+                f"({len(result)} bytes). Add pagination params (page, pageSize) "
+                "or filter server-side via query params (name, status, etc.)."
+            )
+
         if resp.status_code == 202:
             return f"Operation accepted (202).\n{result}"
         return result

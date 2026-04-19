@@ -5,7 +5,7 @@ MCP (Model Context Protocol) Server for VNG Cloud. Provides AI assistants with t
 ## Key Features
 
 - **Dynamic API Call** — Two tools (`search_api` + `call_api`) cover all VNG Cloud REST APIs
-- **OpenAPI-driven** — Adding a new product = adding a spec file to `specs/`
+- **Live spec registry** — Specs fetched from VNG Cloud's docs portal at startup; new products appear automatically without a server release
 - **Kubernetes Resources** — List pods/deployments/services, get logs, apply YAML manifests
 - **Safety Controls** — Read-only by default, write operations require explicit opt-in
 - **Streamable HTTP** — Remote hosting via `--transport streamable-http`
@@ -24,16 +24,25 @@ MCP (Model Context Protocol) Server for VNG Cloud. Provides AI assistants with t
 export GRN_ACCESS_KEY_ID=your-client-id
 export GRN_SECRET_ACCESS_KEY=your-client-secret
 export GRN_DEFAULT_REGION=HCM-3
+export GRN_DEFAULT_PROJECT_ID=pro-xxxxxxxx   # substituted into {projectId} paths
 ```
 
-**Option B: Credentials file (via GreenNode CLI)**
+**Option B: GreenNode CLI (recommended)**
 
 ```bash
-pip install grncli
 grn configure
 ```
 
-This creates `~/.greenode/credentials` which the server reads automatically.
+The wizard auto-detects and saves your `project_id` alongside credentials:
+
+- `~/.greenode/credentials` — `client_id`, `client_secret`
+- `~/.greenode/config` — `region`, `project_id`, `output`
+
+See [greenode-cli](https://github.com/vngcloud/greennode-cli) for install instructions.
+
+### Profiles
+
+Both the credentials and config files support profile sections. Select one via `GRN_PROFILE=<name>`. Each profile gets its own region and `project_id`, so switching profile switches every identity detail in one move.
 
 ## Quickstart
 
@@ -74,6 +83,28 @@ call_api(method="GET", path="/v1/clusters")
 call_api(method="POST", path="/v1/clusters", body={"name": "my-cluster", ...})
 ```
 
+**Path placeholders:** Leave `{projectId}` / `{project_id}` in the path — the server
+substitutes your project UUID from `~/.greenode/config` (set by `grn configure`) or
+`GRN_DEFAULT_PROJECT_ID`.
+
+```
+call_api(method="GET", path="/v2/{projectId}/networks", product="vserver")
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `method` | `str` | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| `path` | `str` | API path, e.g. `/v1/clusters` |
+| `product` | `str?` | `vks`, `vlb`, `vserver`, ... (helps resolve the base URL) |
+| `region` | `str?` | `HCM-3` or `HAN` (default: from config) |
+| `params` | `dict?` | Query params (pagination is 1-based: `page=1` is first page) |
+| `body` | `dict?` | JSON body for POST/PUT/PATCH |
+| `raw` | `bool` | `True` returns full JSON; default formats list → markdown table (first 6 columns, top 100 rows) |
+
+Response size is capped at 800 KB — if the API returns more, `call_api` asks you to paginate.
+
 ### Kubernetes Resource Management
 
 Requires kubeconfig from VKS API.
@@ -97,16 +128,28 @@ Requires kubeconfig from VKS API.
 | `--host` | `127.0.0.1` | Bind host for HTTP transport |
 | `--port` | `8000` | Bind port for HTTP transport |
 | `--api-key` | — | Bearer token for HTTP endpoint (env: `GRN_MCP_API_KEY`) |
+| `--refresh-specs` | — | Bypass cached specs; force re-download from registry |
+| `--offline` | — | Skip registry fetch; use cached specs only |
+
+## Spec Registry
+
+Specs are fetched from VNG Cloud's public docs portal at server start and cached locally at `~/.greenode/mcp-specs/`.
+
+- **First run** requires internet access to `docs.api.vngcloud.vn`
+- **Subsequent runs** reuse the cache; refresh is automatic once per 24 hours (or on `--refresh-specs`)
+- **Offline mode** (`--offline`) works once the cache has been populated by at least one successful run
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Cannot reach spec source` on first run | No network to `docs.api.vngcloud.vn` | Restore network; or populate cache offline from another machine |
+| `search_api` returns empty for a known product | Product's docs page changed format | Run with `--refresh-specs` to re-fetch; report if persists |
+| Stale spec despite product update | Cache TTL has not expired (24 h) | Run with `--refresh-specs` to force re-download |
 
 ## Supported Products
 
-Products are added by bundling OpenAPI specs in `specs/`. Currently available:
-
-| Product | Spec file | Endpoints |
-|---------|-----------|-----------|
-| VKS (VNG Kubernetes Service) | `vks.json` | 28 |
-
-More products (vServer, vLB, vStorage, vNetwork, DNS, CDN, vMonitor, vDB) will be added incrementally.
+Products are sourced dynamically from the VNG Cloud docs portal — any product published there becomes available on the next server restart. At time of writing, the portal documents VKS, vServer, vLB, vDB, vMonitor and more. New products require no server release.
 
 ## Security
 

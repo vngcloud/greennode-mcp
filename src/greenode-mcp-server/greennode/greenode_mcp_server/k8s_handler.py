@@ -10,7 +10,7 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 from greennode.greenode_mcp_server.client import GreenodeClient
-from greennode.greenode_mcp_server.config import VksConfig
+from greennode.greenode_mcp_server.config import GreenodeConfig
 from greennode.greenode_mcp_server.k8s_apis import K8sApis
 from greennode.greenode_mcp_server.k8s_client_cache import K8sClientCache
 from greennode.greenode_mcp_server.models import (
@@ -28,6 +28,145 @@ from greennode.greenode_mcp_server.models import (
 logger = logging.getLogger(__name__)
 
 
+# Default apiVersion for common built-in K8s kinds.
+# Used when the caller doesn't specify `api_version` explicitly.
+# Custom resources are not in this list — caller must pass api_version.
+COMMON_API_VERSIONS: dict[str, str] = {
+    # core/v1
+    "Pod": "v1",
+    "Service": "v1",
+    "ConfigMap": "v1",
+    "Secret": "v1",
+    "Namespace": "v1",
+    "Node": "v1",
+    "PersistentVolume": "v1",
+    "PersistentVolumeClaim": "v1",
+    "ServiceAccount": "v1",
+    "Event": "v1",
+    "Endpoints": "v1",
+    "LimitRange": "v1",
+    "ResourceQuota": "v1",
+    # apps/v1
+    "Deployment": "apps/v1",
+    "StatefulSet": "apps/v1",
+    "DaemonSet": "apps/v1",
+    "ReplicaSet": "apps/v1",
+    # batch/v1
+    "Job": "batch/v1",
+    "CronJob": "batch/v1",
+    # networking
+    "Ingress": "networking.k8s.io/v1",
+    "NetworkPolicy": "networking.k8s.io/v1",
+    "IngressClass": "networking.k8s.io/v1",
+    # rbac
+    "Role": "rbac.authorization.k8s.io/v1",
+    "RoleBinding": "rbac.authorization.k8s.io/v1",
+    "ClusterRole": "rbac.authorization.k8s.io/v1",
+    "ClusterRoleBinding": "rbac.authorization.k8s.io/v1",
+    # storage
+    "StorageClass": "storage.k8s.io/v1",
+    "VolumeAttachment": "storage.k8s.io/v1",
+    # autoscaling
+    "HorizontalPodAutoscaler": "autoscaling/v2",
+    # apiextensions
+    "CustomResourceDefinition": "apiextensions.k8s.io/v1",
+    # policy
+    "PodDisruptionBudget": "policy/v1",
+}
+
+
+def _summarize_status(kind: str, resource: dict) -> str:
+    """Return a compact one-line status summary for common K8s kinds.
+
+    Unknown kinds fall through to a generic `status.phase` lookup and an
+    empty string if nothing meaningful is present.
+    """
+    status = resource.get("status") or {}
+    spec = resource.get("spec") or {}
+
+    if kind == "Pod":
+        phase = status.get("phase", "Unknown")
+        container_statuses = status.get("containerStatuses") or []
+        ready = sum(1 for c in container_statuses if c.get("ready"))
+        total = len(container_statuses)
+        restarts = sum(c.get("restartCount", 0) for c in container_statuses)
+        return f"{phase} (ready {ready}/{total}, restarts {restarts})"
+
+    if kind in ("Deployment", "ReplicaSet", "StatefulSet"):
+        ready = status.get("readyReplicas", 0) or 0
+        desired = spec.get("replicas", 0) or 0
+        return f"{ready}/{desired} ready"
+
+    if kind == "DaemonSet":
+        ready = status.get("numberReady", 0) or 0
+        desired = status.get("desiredNumberScheduled", 0) or 0
+        return f"{ready}/{desired} ready"
+
+    if kind == "Service":
+        svc_type = spec.get("type", "")
+        cluster_ip = spec.get("clusterIP", "")
+        ingress = (status.get("loadBalancer") or {}).get("ingress") or []
+        external = ", ".join(i.get("ip") or i.get("hostname") or "" for i in ingress if i)
+        return f"{svc_type} {cluster_ip}".strip() + (f" → {external}" if external else "")
+
+    if kind == "PersistentVolumeClaim":
+        phase = status.get("phase", "Unknown")
+        capacity = (status.get("capacity") or {}).get("storage", "")
+        return f"{phase}" + (f" ({capacity})" if capacity else "")
+
+    if kind == "PersistentVolume":
+        phase = status.get("phase", "Unknown")
+        capacity = (spec.get("capacity") or {}).get("storage", "")
+        claim = spec.get("claimRef") or {}
+        claim_name = f"{claim.get('namespace', '')}/{claim.get('name', '')}" if claim else ""
+        return f"{phase}" + (f" ({capacity})" if capacity else "") + (f" → {claim_name}" if claim_name else "")
+
+    if kind == "Node":
+        conditions = status.get("conditions") or []
+        ready_cond = next((c for c in conditions if c.get("type") == "Ready"), None)
+        ready = ready_cond and ready_cond.get("status") == "True"
+        version = (status.get("nodeInfo") or {}).get("kubeletVersion", "")
+        return f"{'Ready' if ready else 'NotReady'}" + (f" ({version})" if version else "")
+
+    if kind == "Job":
+        succeeded = status.get("succeeded", 0) or 0
+        failed = status.get("failed", 0) or 0
+        active = status.get("active", 0) or 0
+        return f"active={active} succeeded={succeeded} failed={failed}"
+
+    if kind == "CronJob":
+        last = status.get("lastScheduleTime", "") or ""
+        active = len(status.get("active") or [])
+        return f"active={active}" + (f" lastSchedule={last}" if last else "")
+
+    if kind == "Ingress":
+        ingress = (status.get("loadBalancer") or {}).get("ingress") or []
+        addrs = ", ".join(i.get("ip") or i.get("hostname") or "" for i in ingress if i)
+        return addrs or "no address"
+
+    # Generic fallback
+    phase = status.get("phase")
+    if phase:
+        return str(phase)
+    return ""
+
+
+def _resolve_api_version(kind: str, api_version: str | None) -> str:
+    """Return `api_version` if set; otherwise look up kind in COMMON_API_VERSIONS.
+
+    Raises ValueError with a helpful hint when neither works.
+    """
+    if api_version:
+        return api_version
+    resolved = COMMON_API_VERSIONS.get(kind)
+    if resolved:
+        return resolved
+    raise ValueError(
+        f"api_version is required for kind {kind!r} (not in the built-in defaults). "
+        f"Use list_api_versions to find available versions."
+    )
+
+
 class K8sHandler:
     """Handler for Kubernetes operations in the GreenNode MCP Server.
 
@@ -39,7 +178,7 @@ class K8sHandler:
     def __init__(
         self,
         mcp,
-        config: VksConfig,
+        config: GreenodeConfig,
         vks_client: GreenodeClient,
         allow_write: bool = False,
         allow_sensitive_data_access: bool = False,
@@ -48,7 +187,7 @@ class K8sHandler:
 
         Args:
             mcp: The MCP server instance
-            config: VKS configuration
+            config: GreenNode configuration
             vks_client: GreenNode HTTP client
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
@@ -127,7 +266,7 @@ class K8sHandler:
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         kind: str = Field(..., description="Kind of the Kubernetes resources to list (e.g., 'Pod', 'Service', 'Deployment').\n            Use the list_api_versions tool to find available resource kinds."),
-        api_version: str = Field(..., description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Use the list_api_versions tool to find available API versions."),
+        api_version: Optional[str] = Field(None, description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Optional for common built-in kinds (Pod, Deployment, Service, etc.) — auto-defaulted.\n            Required for custom resources; use list_api_versions to find available API versions."),
         namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resources to list.\n            If not provided, resources will be listed across all namespaces (for namespaced resources)."),
         label_selector: Optional[str] = Field(None, description="Label selector to filter resources (e.g., 'app=nginx,tier=frontend').\n            Uses the same syntax as kubectl's --selector flag."),
         field_selector: Optional[str] = Field(None, description="Field selector to filter resources (e.g., 'metadata.name=my-pod,status.phase=Running').\n            Uses the same syntax as kubectl's --field-selector flag."),
@@ -144,16 +283,23 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl get' commands.
 
         ## Response Information
-        The response includes a summary of each resource with name, namespace, creation timestamp,
-        labels, and annotations.
+        Each item includes name, namespace, creation timestamp, labels, annotations,
+        and `status_summary` — a compact per-kind status string (e.g. "Running
+        (ready 1/1, restarts 0)" for Pods, "3/3 ready" for Deployments).
 
         ## Usage Tips
-        - Use the list_api_versions tool first to find available API versions
+        - Leave `namespace` empty to list across all namespaces (response shows
+          `namespace: "all namespaces"`). Pass a specific namespace to scope.
         - For non-namespaced resources (like Nodes), the namespace parameter is ignored
         - Combine label and field selectors for more precise filtering
+        - **Finding unhealthy Pods:** `status.phase != Running` MISSES
+          CrashLoopBackOff (those pods keep `phase=Running`). To catch them,
+          list all pods and inspect `status_summary` (shows restart count)
+          or check container statuses via manage_k8s_resource.
         - Results are summarized to avoid overwhelming responses
         """
         try:
+            api_version = _resolve_api_version(kind, api_version)
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.list_resources(
                 kind, api_version,
@@ -173,6 +319,7 @@ class K8sHandler:
                     creation_timestamp=str(creation_timestamp),
                     labels=metadata.get("labels", None),
                     annotations=metadata.get("annotations", None),
+                    status_summary=_summarize_status(kind, item_dict) or None,
                 )
                 summaries.append(summary)
 
@@ -184,7 +331,7 @@ class K8sHandler:
             data = KubernetesResourceListData(
                 kind=kind,
                 api_version=api_version,
-                namespace=namespace,
+                namespace=namespace if namespace else "all namespaces",
                 count=len(summaries),
                 items=summaries,
             )
@@ -215,7 +362,6 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl logs' commands.
 
         ## Requirements
-        - The server must be run with the `--allow-sensitive-data-access` flag
         - The pod must exist and be accessible in the specified namespace
         - The VKS cluster must exist and be accessible
 
@@ -223,8 +369,6 @@ class K8sHandler:
         The response includes pod name, namespace, container name (if specified),
         and log lines as an array of strings.
         """
-        if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading pod logs requires --allow-sensitive-data-access flag.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
@@ -278,7 +422,6 @@ class K8sHandler:
         IMPORTANT: Use this tool instead of 'kubectl describe' or 'kubectl get events' commands.
 
         ## Requirements
-        - The server must be run with the `--allow-sensitive-data-access` flag
         - The resource must exist and be accessible in the specified namespace
 
         ## Response Information
@@ -291,8 +434,6 @@ class K8sHandler:
         - The count field shows how many times the same event has occurred
         - Recent events are most relevant for current issues
         """
-        if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading Kubernetes events requires --allow-sensitive-data-access flag.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
@@ -375,7 +516,7 @@ class K8sHandler:
         operation: str = Field(..., description="Operation to perform on the resource. Valid values:\n            - create: Create a new resource\n            - replace: Replace an existing resource\n            - patch: Update specific fields of an existing resource\n            - delete: Delete an existing resource\n            - read: Get details of an existing resource\n            Use list_k8s_resources for listing multiple resources."),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         kind: str = Field(..., description='Kind of the Kubernetes resource (e.g., "Pod", "Service", "Deployment").'),
-        api_version: str = Field(..., description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1").'),
+        api_version: Optional[str] = Field(None, description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1"). Optional for common built-in kinds — auto-defaulted. Required for custom resources.'),
         name: Optional[str] = Field(None, description="Name of the Kubernetes resource. Required for all operations except create (where it can be specified in the body)."),
         namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resource. Required for namespaced resources.\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes)."),
         body: Optional[Dict[str, Any]] = Field(None, description="Resource definition as a dictionary. Required for create, replace, and patch operations.\n            For create and replace, this should be a complete resource definition.\n            For patch, this should contain only the fields to update."),
@@ -428,6 +569,7 @@ class K8sHandler:
                 raise RuntimeError("Access denied: reading Kubernetes Secrets requires --allow-sensitive-data-access flag.")
 
         try:
+            api_version = _resolve_api_version(kind, api_version)
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.manage_resource(
                 operation_enum, kind, api_version,
@@ -466,25 +608,25 @@ class K8sHandler:
 
     async def apply_yaml(
         self,
-        yaml_path: str = Field(..., description="Absolute path to the YAML file to apply.\n            IMPORTANT: Must be an absolute path (e.g., '/home/user/manifests/app.yaml') as the MCP client and server might not run from the same location."),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        namespace: str = Field(..., description="Kubernetes namespace to apply resources to. Will be used for namespaced resources that do not specify a namespace."),
+        yaml_content: Optional[str] = Field(None, description="Inline YAML manifest string. Preferred when the MCP client and server run on different machines. Supports multi-document YAML (--- separators). Either yaml_content or yaml_path must be provided."),
+        yaml_path: Optional[str] = Field(None, description="Absolute path to a local YAML file on the server's machine (e.g. '/home/user/app.yaml'). Use yaml_content instead when running MCP remotely. Either yaml_content or yaml_path must be provided."),
+        namespace: Optional[str] = Field(None, description="Default namespace for resources in the YAML that don't specify one. If omitted, resources must declare their own namespace or be cluster-scoped."),
         force: bool = Field(True, description="Whether to update resources if they already exist (similar to kubectl apply). Set to false to only create new resources."),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
-        """Apply a Kubernetes YAML from a local file.
+        """Apply Kubernetes YAML manifest to a VKS cluster.
 
-        This tool applies Kubernetes resources defined in a YAML file to a VKS cluster,
-        similar to the `kubectl apply` command. It supports multi-document YAML files
-        and can create or update resources, useful for deploying applications, creating
-        Kubernetes resources, and applying complete application stacks.
+        Accepts either inline YAML content (recommended for remote MCP) or
+        an absolute file path. Supports multi-document YAML (--- separators).
+        Creates new resources or updates existing ones (when force=True), like
+        `kubectl apply -f`.
 
         IMPORTANT: Use this tool instead of 'kubectl apply -f' commands.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag
-        - The YAML file must exist and be accessible to the server
-        - The path must be absolute (e.g., '/home/user/manifests/app.yaml')
+        - Provide ONE of: yaml_content (inline string) or yaml_path (server-local file)
         - The VKS cluster must exist and be accessible
 
         ## Response Information
@@ -494,20 +636,27 @@ class K8sHandler:
         if not self.allow_write:
             raise RuntimeError("Write access denied: apply_yaml requires --allow-write flag.")
 
-        if not os.path.isabs(yaml_path):
-            raise RuntimeError(f"Path must be absolute: {yaml_path}")
+        if not yaml_content and not yaml_path:
+            raise RuntimeError("Provide either yaml_content (inline) or yaml_path (file path).")
+        if yaml_content and yaml_path:
+            raise RuntimeError("Provide only one of yaml_content or yaml_path, not both.")
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
 
-            logger.info("Reading YAML content from file: %s", yaml_path)
-            try:
-                with open(yaml_path, "r") as yaml_file:
-                    yaml_content = yaml_file.read()
-            except FileNotFoundError:
-                raise RuntimeError(f"YAML file not found: {yaml_path}")
-            except IOError as e:
-                raise RuntimeError(f"Error reading YAML file {yaml_path}: {str(e)}")
+            if yaml_path:
+                if not os.path.isabs(yaml_path):
+                    raise RuntimeError(f"Path must be absolute: {yaml_path}")
+                logger.info("Reading YAML content from file: %s", yaml_path)
+                try:
+                    with open(yaml_path, "r") as yaml_file:
+                        yaml_content = yaml_file.read()
+                except FileNotFoundError:
+                    raise RuntimeError(f"YAML file not found: {yaml_path}")
+                except IOError as e:
+                    raise RuntimeError(f"Error reading YAML file {yaml_path}: {str(e)}")
+            else:
+                logger.info("Applying inline YAML content (%d bytes)", len(yaml_content))
 
             yaml_objects = list(yaml.safe_load_all(yaml_content))
             yaml_objects = [doc for doc in yaml_objects if doc is not None]
@@ -515,12 +664,13 @@ class K8sHandler:
 
             results, created_count, updated_count = k8s_client.apply_from_yaml(
                 yaml_objects=yaml_objects,
-                namespace=namespace,
+                namespace=namespace or "default",
                 force=force,
             )
 
+            source = f"file {yaml_path}" if yaml_path else "inline YAML"
             success_msg = (
-                f"Successfully applied all resources from YAML file {yaml_path}"
+                f"Successfully applied all resources from {source}"
                 f" ({created_count} created, {updated_count} updated)"
             )
             logger.info(success_msg)

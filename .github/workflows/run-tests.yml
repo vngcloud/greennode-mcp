@@ -40,3 +40,7 @@ jobs:
         run: |
           uv pip install ruff
           uv run ruff check greennode/
+
+      - name: MCP protocol smoke test
+        working-directory: src/greenode-mcp-server
+        run: python3 scripts/mcp_protocol_smoke.py
