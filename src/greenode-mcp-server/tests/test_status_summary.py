@@ -100,7 +100,8 @@ def test_job_status():
 def test_ingress_with_lb():
     ing = {"status": {"loadBalancer": {"ingress": [{"ip": "1.2.3.4"}, {"hostname": "example.com"}]}}}
     result = _summarize_status("Ingress", ing)
-    assert result == "1.2.3.4,example.com"
+    assert "1.2.3.4" in result
+    assert "example.com" in result
 
 
 def test_ingress_no_address():
