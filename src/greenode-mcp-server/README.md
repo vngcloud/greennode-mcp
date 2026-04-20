@@ -46,21 +46,101 @@ Both the credentials and config files support profile sections. Select one via `
 
 ## Quickstart
 
+Pick a transport mode based on where your client runs:
+
+| Mode | Use case | Section |
+|------|----------|---------|
+| **stdio** (default) | Client on the same machine (Claude Code/Desktop, Cursor local) | [Mode 1](#mode-1--stdio-local) |
+| **Streamable HTTP — local** | Testing HTTP surface, local Python agents, MCP Inspector | [Mode 2](#mode-2--streamable-http-local) |
+| **Streamable HTTP — remote** | Team share, remote agents, server deployment | [Mode 3](#mode-3--streamable-http-remote) |
+
+### Mode 1 — stdio (local)
+
+**Claude Code:**
+
 ```bash
-uvx greenode-mcp-server
+claude mcp add greenode -- uvx greenode-mcp-server --allow-write
 ```
 
-### Claude Desktop / Cursor configuration
+**Claude Desktop / Cursor** — add to the client's MCP config:
 
 ```json
 {
   "mcpServers": {
-    "greennode": {
+    "greenode": {
       "command": "uvx",
       "args": ["greenode-mcp-server", "--allow-write"]
     }
   }
 }
+```
+
+Client spawns `uvx greenode-mcp-server` as a subprocess, communicates via stdin/stdout JSON-RPC.
+
+### Mode 2 — Streamable HTTP (local)
+
+Run the server as an HTTP endpoint on your own machine.
+
+```bash
+# Generate an API key and start the server
+export GRN_MCP_API_KEY=$(openssl rand -hex 32)
+uvx greenode-mcp-server \
+  --transport streamable-http \
+  --host 127.0.0.1 --port 8000 \
+  --allow-write \
+  --api-key "$GRN_MCP_API_KEY"
+
+# In another terminal, connect Claude Code
+claude mcp add greenode --transport http \
+  --url http://127.0.0.1:8000/mcp \
+  --header "Authorization: Bearer $GRN_MCP_API_KEY"
+```
+
+Quick smoke test:
+
+```bash
+curl -sN -X POST http://127.0.0.1:8000/mcp \
+  -H "Authorization: Bearer $GRN_MCP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | head -5
+```
+
+Python agent (MCP SDK):
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async with streamablehttp_client(
+    "http://127.0.0.1:8000/mcp",
+    headers={"Authorization": f"Bearer {api_key}"},
+) as (read, write, _):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        tools = await session.list_tools()
+```
+
+### Mode 3 — Streamable HTTP (remote)
+
+Deploy behind nginx + TLS for team access. Full runbook:
+**[docs/STREAMABLE-HTTP.md](../../docs/STREAMABLE-HTTP.md)** covers VM provisioning, Docker deployment, TLS, firewall, monitoring, and key rotation.
+
+TL;DR — after server is deployed at `https://mcp.yourteam.com`:
+
+```bash
+claude mcp add greenode --transport http \
+  --url https://mcp.yourteam.com/mcp \
+  --header "Authorization: Bearer $GRN_MCP_API_KEY"
+```
+
+### Verify
+
+In any client:
+
+```
+/mcp                         → greenode ✓ Connected
+search_api("cluster")        → returns VKS endpoints
 ```
 
 ## Tools
@@ -146,10 +226,6 @@ Specs are fetched from VNG Cloud's public docs portal at server start and cached
 | `Cannot reach spec source` on first run | No network to `docs.api.vngcloud.vn` | Restore network; or populate cache offline from another machine |
 | `search_api` returns empty for a known product | Product's docs page changed format | Run with `--refresh-specs` to re-fetch; report if persists |
 | Stale spec despite product update | Cache TTL has not expired (24 h) | Run with `--refresh-specs` to force re-download |
-
-## Supported Products
-
-Products are sourced dynamically from the VNG Cloud docs portal — any product published there becomes available on the next server restart. At time of writing, the portal documents VKS, vServer, vLB, vDB, vMonitor and more. New products require no server release.
 
 ## Security
 
