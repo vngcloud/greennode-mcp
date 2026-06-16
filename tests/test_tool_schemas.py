@@ -92,3 +92,25 @@ async def test_cluster_create_body_lists_valid_values(config, client):
     assert "RAPID" in desc and "STABLE" in desc
     assert "CILIUM_NATIVE_ROUTING" in desc
     assert "secondarySubnets" in desc
+
+
+@pytest.mark.asyncio
+async def test_nodegroup_list_nodes_pagination_constraints(config, client):
+    schema = await _schema_for(
+        lambda mcp: NodeGroupHandler(mcp, config, client, allow_write=True),
+        "nodegroup_list_nodes",
+    )
+    props = schema["properties"]
+    assert _minimum(props["page"]) == 0
+    assert _minimum(props["pageSize"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_nodegroup_create_body_documents_ranges(config, client):
+    schema = await _schema_for(
+        lambda mcp: NodeGroupHandler(mcp, config, client, allow_write=True),
+        "nodegroup_create",
+    )
+    desc = schema["properties"]["body"]["description"]
+    assert "20-5000" in desc
+    assert "0-10" in desc
