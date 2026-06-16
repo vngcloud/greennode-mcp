@@ -69,3 +69,26 @@ async def test_get_pod_logs_numeric_constraints(config, client):
     assert props["tail_lines"]["minimum"] == 1
     assert props["limit_bytes"]["minimum"] == 1
     assert _minimum(props["since_seconds"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_cluster_list_pagination_constraints(config, client):
+    schema = await _schema_for(
+        lambda mcp: ClusterHandler(mcp, config, client, allow_write=True),
+        "cluster_list",
+    )
+    props = schema["properties"]
+    assert _minimum(props["page"]) == 0
+    assert _minimum(props["pageSize"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_cluster_create_body_lists_valid_values(config, client):
+    schema = await _schema_for(
+        lambda mcp: ClusterHandler(mcp, config, client, allow_write=True),
+        "cluster_create",
+    )
+    desc = schema["properties"]["body"]["description"]
+    assert "RAPID" in desc and "STABLE" in desc
+    assert "CILIUM_NATIVE_ROUTING" in desc
+    assert "secondarySubnets" in desc
