@@ -15,6 +15,7 @@ from vks_mcp_server.config import load_config
 from vks_mcp_server.cluster_handler import ClusterHandler
 from vks_mcp_server.k8s_handler import K8sHandler
 from vks_mcp_server.nodegroup_handler import NodeGroupHandler
+from vks_mcp_server.version_handler import VersionHandler
 
 
 @pytest.fixture
@@ -114,3 +115,23 @@ async def test_nodegroup_create_body_documents_ranges(config, client):
     desc = schema["properties"]["body"]["description"]
     assert "20-5000" in desc
     assert "0-10" in desc
+
+
+async def _description_for(register, tool_name):
+    """Register handler(s) on a fresh FastMCP and return a tool's description (docstring)."""
+    mcp = FastMCP("test")
+    register(mcp)
+    tools = await mcp.list_tools()
+    return next(t for t in tools if t.name == tool_name).description
+
+
+@pytest.mark.asyncio
+async def test_version_tools_have_workflow_hints(config, client):
+    cv = await _description_for(
+        lambda mcp: VersionHandler(mcp, config, client), "cluster_versions_list"
+    )
+    ng = await _description_for(
+        lambda mcp: VersionHandler(mcp, config, client), "nodegroup_images_list"
+    )
+    assert "cluster_create" in cv
+    assert "nodegroup_create" in ng
