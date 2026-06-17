@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `nodegroup_images_list` tool (and its `/v1/node-group-images` helper).
+
 ### Changed
 
 - Reorganized as an independent project under `src/vks-mcp-server/` within the

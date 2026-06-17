@@ -40,7 +40,6 @@ By default the server runs in **read-only** mode. Use the `--allow-write` flag t
 - nodegroup_list, nodegroup_get: View node groups
 - nodegroup_list_nodes: List nodes in a node group
 - nodegroup_delete_dryrun: Preview information before deleting a node group
-- nodegroup_images_list: List available node group images
 
 ### Write (requires --allow-write):
 - cluster_create, cluster_update, cluster_delete: Create, update, delete cluster

@@ -4,7 +4,7 @@ An MCP (Model Context Protocol) server that gives AI assistants (Claude, Cursor,
 Gemini, etc.) tools to manage **VKS — VNG Kubernetes Service** clusters and the
 Kubernetes resources inside them.
 
-- **28 tools** across 5 handlers: Auth, Cluster, NodeGroup, Version, K8s
+- **27 tools** across 5 handlers: Auth, Cluster, NodeGroup, Version, K8s
 - Fully **async** (httpx) on the **FastMCP** framework
 - Read-only by default; write and sensitive-data access are opt-in via flags
 - Import package: `greennode.vks_mcp_server`
@@ -59,7 +59,7 @@ Cursor, …) at the command above.
 - **Cluster** — list/get/create/update/delete, kubeconfig, events, auto-upgrade,
   delete dry-run, create validation
 - **NodeGroup** — list/get/create/update/delete, list nodes, delete dry-run
-- **Version** — list cluster versions, list node-group images
+- **Version** — list cluster versions
 - **Kubernetes** — list resources, manage a single resource (CRUD), apply YAML,
   generate app manifest, pod logs, resource events, list API versions
 - **Auth** — get the current access token

@@ -130,11 +130,7 @@ async def test_version_tools_have_workflow_hints(config, client):
     cv = await _description_for(
         lambda mcp: VersionHandler(mcp, config, client), "cluster_versions_list"
     )
-    ng = await _description_for(
-        lambda mcp: VersionHandler(mcp, config, client), "nodegroup_images_list"
-    )
     assert "cluster_create" in cv
-    assert "nodegroup_create" in ng
 
 
 @pytest.mark.asyncio

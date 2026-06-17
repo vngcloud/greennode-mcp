@@ -130,8 +130,7 @@ class NodeGroupHandler:
         body: dict = Field(..., description=(
             "CreateNodeGroupDto body (JSON object). Required fields: name, "
             "numNodes (0-10), imageId, flavorId, diskSize (20-5000), diskType, "
-            "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig. "
-            "Use nodegroup_images_list to find a valid imageId."
+            "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig."
         )),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
@@ -139,10 +138,6 @@ class NodeGroupHandler:
 
         ## Requirements
         - Server must run with --allow-write
-
-        ## Workflow
-        1. nodegroup_images_list -> choose imageId
-        2. nodegroup_create
         """
         validate_id(cluster_id, "cluster_id")
         result = await self.client.post(
