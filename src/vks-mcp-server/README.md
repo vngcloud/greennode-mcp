@@ -61,7 +61,7 @@ Cursor, …) at the command above.
 - **NodeGroup** — list/get/create/update/delete, list nodes, delete dry-run
 - **Version** — list cluster versions, list node-group images
 - **Kubernetes** — list resources, manage a single resource (CRUD), apply YAML,
-  pod logs, resource events, list API versions
+  generate app manifest, pod logs, resource events, list API versions
 - **Auth** — get the current access token
 
 ## Development

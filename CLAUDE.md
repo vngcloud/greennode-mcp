@@ -4,7 +4,7 @@
 
 GreenNode MCP Server provides AI assistants (Claude, Cursor, Gemini, etc.) with tools to manage VKS (VNG Kubernetes Service) clusters and Kubernetes resources via the Model Context Protocol.
 
-- **27 tools** across 5 handlers: Auth, Cluster, NodeGroup, Version, K8s
+- **28 tools** across 5 handlers: Auth, Cluster, NodeGroup, Version, K8s
 - **Async architecture** — fully async/await with httpx.AsyncClient
 - **FastMCP framework** — uses `mcp` library for tool registration
 
@@ -117,7 +117,7 @@ cd src/vks-mcp-server && uv run pytest tests/ -v
 | `validators.py` | ID format validation |
 | `cluster_handler.py` | 12 cluster tools (CRUD + kubeconfig + events + auto-upgrade + validation) |
 | `nodegroup_handler.py` | 7 nodegroup tools (CRUD + nodes + dry-run) |
-| `k8s_handler.py` | 6 K8s tools (list/manage resources + logs + events + apply YAML) |
+| `k8s_handler.py` | 7 K8s tools (list/manage resources + logs + events + apply YAML + generate app manifest) |
 | `k8s_apis.py` | K8s API client wrapper using kubernetes library |
 | `k8s_client_cache.py` | TTL cache for K8s clients (840s) |
 | `version_handler.py` | 2 tools (cluster versions + nodegroup images) |
