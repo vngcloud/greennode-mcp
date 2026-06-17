@@ -129,8 +129,9 @@ class NodeGroupHandler:
         cluster_id: str = Field(..., description="VKS Cluster ID to add the node group to"),
         body: dict = Field(..., description=(
             "CreateNodeGroupDto body (JSON object). Required fields: name, "
-            "numNodes (0-10), imageId, flavorId, diskSize (20-5000), diskType, "
-            "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig."
+            "numNodes (0-10), flavorId, diskSize (20-5000), diskType, "
+            "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig "
+            "(optional: os = ubuntu|linux)."
         )),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
@@ -152,17 +153,15 @@ class NodeGroupHandler:
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         nodegroup_id: str = Field(..., description="Node Group ID to update"),
         body: dict = Field(..., description=(
-            "Update body (JSON object). 'imageId' is REQUIRED. Optional: "
+            "Update body (JSON object). No fields are required. Optional: "
             "numNodes (0-10), securityGroups, labels, taints, autoScaleConfig, "
             "upgradeConfig."
         )),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
-        """Updates a node group. Requires --allow-write flag. imageId is required in body."""
+        """Updates a node group. Requires --allow-write flag."""
         validate_id(cluster_id, "cluster_id")
         validate_id(nodegroup_id, "nodegroup_id")
-        if "imageId" not in body:
-            raise ValueError("Field 'imageId' is required in body when updating a node group.")
         result = await self.client.put(
             f"/v1/clusters/{cluster_id}/node-groups/{nodegroup_id}",
             region=region,

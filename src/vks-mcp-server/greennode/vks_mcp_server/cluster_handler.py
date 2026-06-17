@@ -20,12 +20,13 @@ from greennode.vks_mcp_server.validators import validate_id
 _CLUSTER_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{3,18}[a-z0-9]$")
 _NODEGROUP_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{3,13}[a-z0-9]$")
 
-_NETWORK_NEEDS_CIDR = {"CALICO", "CILIUM_OVERLAY"}
+_VALID_NETWORK_TYPES = {"CILIUM_OVERLAY", "CILIUM_NATIVE_ROUTING", "TIGERA"}
+_NETWORK_NEEDS_CIDR = {"CILIUM_OVERLAY", "TIGERA"}
 _NETWORK_NEEDS_SECONDARY_SUBNETS = {"CILIUM_NATIVE_ROUTING"}
 
 _REQUIRED_CLUSTER_FIELDS = ["vpcId", "networkType", "version", "releaseChannel"]
 _REQUIRED_NODEGROUP_FIELDS = [
-    "imageId", "flavorId", "diskSize", "diskType",
+    "flavorId", "diskSize", "diskType",
     "securityGroups", "sshKeyId", "upgradeConfig",
 ]
 
@@ -259,8 +260,17 @@ def _cluster_create_validate(
         if not body.get(field):
             errors.append(f"Missing required field: {field}")
 
+    # enablePrivateCluster is a boolean - check presence not truthiness
+    if "enablePrivateCluster" not in body:
+        errors.append("Missing required field: enablePrivateCluster")
+
     # Check network-type-specific fields
     network_type = body.get("networkType", "")
+    if network_type and network_type not in _VALID_NETWORK_TYPES:
+        errors.append(
+            f"networkType '{network_type}' is invalid. "
+            "Must be one of: CILIUM_OVERLAY, CILIUM_NATIVE_ROUTING, TIGERA"
+        )
     if network_type in _NETWORK_NEEDS_CIDR:
         if not body.get("cidr"):
             errors.append(f"networkType={network_type} requires 'cidr' field.")
@@ -284,6 +294,11 @@ def _cluster_create_validate(
         for field in _REQUIRED_NODEGROUP_FIELDS:
             if ng.get(field) is None or ng.get(field) == "" or ng.get(field) == []:
                 errors.append(f"{prefix}: Missing required field: {field}")
+
+        if "numNodes" not in ng:
+            errors.append(f"{prefix}: Missing required field: numNodes")
+        if "enablePrivateNodes" not in ng:
+            errors.append(f"{prefix}: Missing required field: enablePrivateNodes")
 
         disk_size = ng.get("diskSize")
         if disk_size is not None:
@@ -369,13 +384,14 @@ class ClusterHandler:
         self,
         body: dict = Field(..., description=(
             "CreateClusterComboDto body (JSON object). Required top-level fields: "
-            "name, releaseChannel, version, networkType, vpcId, subnetId, nodeGroups. "
+            "name, releaseChannel, version, networkType, vpcId, enablePrivateCluster, nodeGroups. "
             "Valid values - releaseChannel: RAPID | STABLE (default STABLE); "
-            "networkType: CALICO | CILIUM_OVERLAY | CILIUM_NATIVE_ROUTING. "
-            "Conditional: networkType CALICO or CILIUM_OVERLAY requires 'cidr'; "
+            "networkType: CILIUM_OVERLAY | CILIUM_NATIVE_ROUTING | TIGERA. "
+            "Conditional: networkType CILIUM_OVERLAY or TIGERA requires 'cidr'; "
             "CILIUM_NATIVE_ROUTING requires 'secondarySubnets'. "
-            "Each nodeGroups[] item needs: name, imageId, flavorId, diskSize (20-5000), "
-            "diskType, numNodes (0-10), securityGroups, sshKeyId, upgradeConfig. "
+            "Each nodeGroups[] item needs: name, flavorId, diskSize (20-5000), "
+            "diskType, numNodes (0-10), securityGroups, sshKeyId, upgradeConfig "
+            "(optional: os = ubuntu|linux). "
             "Call cluster_create_validate first to check the body."
         )),
         poc: bool = Field(False, description="Whether this is a Proof-of-Concept cluster"),
@@ -465,7 +481,7 @@ class ClusterHandler:
     async def cluster_auto_upgrade_config(
         self,
         cluster_id: str = Field(..., description="Cluster ID"),
-        weekdays: list[str] = Field(..., description="Days of week for auto-upgrade, e.g. ['Mon', 'Wed', 'Fri']"),
+        weekdays: str = Field(..., description="Comma-separated days of week for auto-upgrade, e.g. 'Mon,Wed,Fri'"),
         time: str = Field(..., description="Time of day in HH:mm format, e.g. '03:00'"),
         region: str | None = Field(None, description="Region override"),
     ) -> str:

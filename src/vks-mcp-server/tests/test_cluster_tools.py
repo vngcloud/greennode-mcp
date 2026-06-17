@@ -104,7 +104,6 @@ async def test_cluster_delete_dryrun(client):
 
 _VALID_NODEGROUP = {
     "name": "worker-ng",
-    "imageId": "img-001",
     "flavorId": "flav-001",
     "diskSize": 50,
     "diskType": "SSD",
@@ -112,15 +111,17 @@ _VALID_NODEGROUP = {
     "sshKeyId": "key-001",
     "upgradeConfig": {"strategy": "SURGE", "maxSurge": 1, "maxUnavailable": 1},
     "numNodes": 2,
+    "enablePrivateNodes": True,
 }
 
 _VALID_BODY = {
     "name": "mycluster01",
     "vpcId": "vpc-001",
-    "networkType": "CALICO",
+    "networkType": "CILIUM_OVERLAY",
     "version": "1.28",
     "releaseChannel": "STABLE",
     "cidr": "10.96.0.0/16",
+    "enablePrivateCluster": False,
     "nodeGroups": [_VALID_NODEGROUP],
 }
 
@@ -158,13 +159,31 @@ def test_cluster_create_validate_missing_network_type():
     assert "networkType" in text
 
 
-def test_cluster_create_validate_calico_needs_cidr():
-    """CALICO networkType without cidr returns an error."""
+def test_cluster_create_validate_cilium_overlay_needs_cidr():
+    """CILIUM_OVERLAY networkType without cidr returns an error."""
     body = {k: v for k, v in _VALID_BODY.items() if k != "cidr"}
-    assert body["networkType"] == "CALICO"
+    assert body["networkType"] == "CILIUM_OVERLAY"
     result = _cluster_create_validate({"body": body})
     text = result[0].text
     assert "cidr" in text
+
+
+def test_cluster_create_validate_invalid_network_type():
+    """An unknown networkType (e.g. legacy CALICO) is rejected."""
+    body = {**_VALID_BODY, "networkType": "CALICO"}
+    body.pop("cidr", None)
+    result = _cluster_create_validate({"body": body})
+    text = result[0].text
+    assert "networkType" in text
+    assert text != "valid"
+
+
+def test_cluster_create_validate_missing_enable_private_cluster():
+    """Missing enablePrivateCluster is reported."""
+    body = {k: v for k, v in _VALID_BODY.items() if k != "enablePrivateCluster"}
+    result = _cluster_create_validate({"body": body})
+    text = result[0].text
+    assert "enablePrivateCluster" in text
 
 
 def test_cluster_create_validate_bad_disk_size():
