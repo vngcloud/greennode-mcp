@@ -764,6 +764,11 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.optional-dependencies]
+http = [
+    { name = "uvicorn" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "commitizen" },
@@ -784,7 +789,9 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pyyaml", specifier = ">=6.0.0" },
+    { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.30.0" },
 ]
+provides-extras = ["http"]
 
 [package.metadata.requires-dev]
 dev = [
