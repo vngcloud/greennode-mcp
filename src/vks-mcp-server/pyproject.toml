@@ -57,6 +57,9 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["greennode"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"greennode/vks_mcp_server/templates" = "greennode/vks_mcp_server/templates"
+
 [tool.ruff]
 line-length = 99
 exclude = [

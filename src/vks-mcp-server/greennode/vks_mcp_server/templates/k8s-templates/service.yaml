@@ -1,0 +1,18 @@
+# Kubernetes Service template (VKS LoadBalancer; placeholders substituted by generate_app_manifest)
+apiVersion: v1
+kind: Service
+metadata:
+  name: APP_NAME
+  namespace: NAMESPACE
+  labels:
+    app.kubernetes.io/name: APP_NAME
+  annotations:
+    vks.vngcloud.vn/scheme: LOAD_BALANCER_SCHEME
+spec:
+  type: LoadBalancer
+  ports:
+  - port: PORT
+    targetPort: PORT
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: APP_NAME
