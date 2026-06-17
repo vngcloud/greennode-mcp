@@ -1,8 +1,8 @@
 """Authentication handler for GreenNode MCP Server."""
 from __future__ import annotations
 
-from vks_mcp_server.auth import TokenManager
-from vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.config import VksConfig
 
 
 class AuthHandler:

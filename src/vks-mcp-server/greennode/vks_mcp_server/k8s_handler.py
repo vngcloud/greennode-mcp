@@ -9,11 +9,11 @@ import yaml
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
-from vks_mcp_server.client import VksClient
-from vks_mcp_server.config import VksConfig
-from vks_mcp_server.k8s_apis import K8sApis
-from vks_mcp_server.k8s_client_cache import K8sClientCache
-from vks_mcp_server.models import (
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.k8s_apis import K8sApis
+from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
+from greennode.vks_mcp_server.models import (
     ApiVersionsData,
     ApplyYamlData,
     EventItem,

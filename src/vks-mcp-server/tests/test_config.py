@@ -1,9 +1,9 @@
-"""Tests for vks_mcp_server.config module."""
+"""Tests for greennode.vks_mcp_server.config module."""
 
 import pytest
 from pathlib import Path
 
-from vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.config import load_config
 
 
 def test_load_config_with_client_credentials(sample_config):

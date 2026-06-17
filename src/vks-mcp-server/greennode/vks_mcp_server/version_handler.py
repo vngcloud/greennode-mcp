@@ -4,8 +4,8 @@ from __future__ import annotations
 from mcp import types
 from pydantic import Field
 
-from vks_mcp_server.client import VksClient
-from vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import VksConfig
 
 
 # ---------------------------------------------------------------------------

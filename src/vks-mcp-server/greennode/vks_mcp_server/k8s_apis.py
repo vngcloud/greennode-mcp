@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 
-from vks_mcp_server.models import Operation
+from greennode.vks_mcp_server.models import Operation
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)

@@ -8,6 +8,15 @@ GreenNode MCP Server provides AI assistants (Claude, Cursor, Gemini, etc.) with 
 - **Async architecture** — fully async/await with httpx.AsyncClient
 - **FastMCP framework** — uses `mcp` library for tool registration
 
+## Repository layout
+
+Monorepo organized as a **uv workspace** (root `pyproject.toml`, `members = ["src/*"]`), mirroring the AWS Labs MCP layout. Each product is an independent project under `src/` sharing the `greennode` namespace.
+
+- Product project: `src/vks-mcp-server/` (own `pyproject.toml`, `tests/`, `README.md`, `Dockerfile`, …)
+- Import package: `greennode.vks_mcp_server` (source under `src/vks-mcp-server/greennode/vks_mcp_server/`)
+- CLI entry point: `vks-mcp-server` → `greennode.vks_mcp_server.server:main`
+- Future products: add as `src/<name>-mcp-server/` siblings under the same `greennode` namespace
+
 ## Code conventions
 
 - All source code text must be in **English** — error messages, descriptions, comments, docstrings
@@ -49,7 +58,7 @@ uv run vks-mcp-server --allow-sensitive-data-access
 
 ## Adding a new tool
 
-1. Choose the appropriate handler or create a new one in `src/vks_mcp_server/`
+1. Choose the appropriate handler or create a new one in `src/vks-mcp-server/greennode/vks_mcp_server/`
 2. Define async method with docstring (used as tool description)
 3. Register in handler's `__init__`: `self.mcp.tool(name="tool_name")(self.method)`
 4. Add `validate_id()` for any ID args used in URL construction
@@ -90,10 +99,10 @@ async def my_tool(self, cluster_id: str) -> str:
 ## Testing
 
 ```bash
-uv run python -m pytest tests/ -v
+cd src/vks-mcp-server && uv run pytest tests/ -v
 ```
 
-- 44 tests covering all handlers
+- 51 tests covering all handlers (incl. tool-schema introspection)
 - Uses `respx` for mocking async HTTP calls
 - Uses `pytest-asyncio` for async test support
 

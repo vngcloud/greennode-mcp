@@ -5,10 +5,10 @@ import pytest
 import respx
 import httpx
 
-from vks_mcp_server.config import load_config
-from vks_mcp_server.auth import TokenManager
-from vks_mcp_server.client import VksClient
-from vks_mcp_server.cluster_handler import (
+from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.cluster_handler import (
     _cluster_list,
     _cluster_delete_dryrun,
     _cluster_create_validate,

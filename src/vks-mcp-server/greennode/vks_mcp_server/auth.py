@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.config import VksConfig
 
 IAM_TOKEN_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 

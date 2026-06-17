@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 
-from vks_mcp_server.auth import TokenManager
-from vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.config import VksConfig
 
 LOG = logging.getLogger(__name__)
 

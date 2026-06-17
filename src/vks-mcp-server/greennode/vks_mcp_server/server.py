@@ -6,15 +6,15 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from vks_mcp_server.auth import TokenManager
-from vks_mcp_server.client import VksClient
-from vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import load_config
 
-from vks_mcp_server.auth_handler import AuthHandler
-from vks_mcp_server.cluster_handler import ClusterHandler
-from vks_mcp_server.k8s_handler import K8sHandler
-from vks_mcp_server.nodegroup_handler import NodeGroupHandler
-from vks_mcp_server.version_handler import VersionHandler
+from greennode.vks_mcp_server.auth_handler import AuthHandler
+from greennode.vks_mcp_server.cluster_handler import ClusterHandler
+from greennode.vks_mcp_server.k8s_handler import K8sHandler
+from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
+from greennode.vks_mcp_server.version_handler import VersionHandler
 
 CONFIG_PATH = Path.home() / ".vks" / "config.json"
 

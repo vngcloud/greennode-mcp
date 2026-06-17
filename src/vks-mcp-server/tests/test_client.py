@@ -5,9 +5,9 @@ import pytest
 import respx
 import httpx
 
-from vks_mcp_server.config import load_config
-from vks_mcp_server.auth import TokenManager
-from vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.client import VksClient
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"

@@ -5,10 +5,10 @@ import json
 
 from pydantic import Field
 
-from vks_mcp_server.client import VksClient
-from vks_mcp_server.config import VksConfig
-from vks_mcp_server.models import format_nodegroup_detail, format_nodegroup_table
-from vks_mcp_server.validators import validate_id
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import VksConfig
+from greennode.vks_mcp_server.models import format_nodegroup_detail, format_nodegroup_table
+from greennode.vks_mcp_server.validators import validate_id
 
 
 # ---------------------------------------------------------------------------

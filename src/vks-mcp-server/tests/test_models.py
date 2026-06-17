@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from vks_mcp_server.models import (
+from greennode.vks_mcp_server.models import (
     format_cluster_table,
     format_nodegroup_table,
     format_cluster_detail,

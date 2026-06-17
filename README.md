@@ -1,69 +1,52 @@
-# GreenNode MCP Server (VKS)
+# GreenNode MCP
 
-An MCP (Model Context Protocol) server that gives AI assistants (Claude, Cursor,
-Gemini, etc.) tools to manage **VKS — VNG Kubernetes Service** clusters and the
-Kubernetes resources inside them.
+A monorepo of **MCP (Model Context Protocol) servers** for VNG Cloud products,
+organized as a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/).
+Each product is an independent project under `src/`, sharing the `greennode`
+Python namespace.
 
-- **27 tools** across 5 handlers: Auth, Cluster, NodeGroup, Version, K8s
-- Fully **async** (httpx) on the **FastMCP** framework
-- Read-only by default; write and sensitive-data access are opt-in via flags
+## Servers
 
-## Installation
+| Project | Package | Description |
+|---------|---------|-------------|
+| [`src/vks-mcp-server`](src/vks-mcp-server) | `greennode.vks_mcp_server` | Tools for managing VKS (VNG Kubernetes Service) clusters and Kubernetes resources |
 
-Requires Python ≥ 3.11. Using [uv](https://docs.astral.sh/uv/):
+More servers will be added as sibling projects under `src/`.
+
+## Layout
+
+```
+greenode-mcp/
+├── pyproject.toml          # uv workspace root (members = ["src/*"])
+├── src/
+│   └── vks-mcp-server/     # one product = one independent project
+│       ├── pyproject.toml
+│       ├── greennode/
+│       │   └── vks_mcp_server/
+│       └── tests/
+└── docs/
+```
+
+## Getting started
 
 ```bash
+# Install all workspace members into a shared environment
 uv sync
-```
 
-## Configuration
-
-Credentials and region are read from `~/.greenode/credentials` and
-`~/.greenode/config` (INI format, shared with greenode-cli).
-
-Environment variables override the config files (highest priority):
-
-| Variable | Purpose |
-|----------|---------|
-| `GRN_CLIENT_ID` | Override client_id |
-| `GRN_CLIENT_SECRET` | Override client_secret |
-| `GRN_PROFILE` | Select profile (default: `default`) |
-| `GRN_DEFAULT_REGION` | Override region |
-
-## Running
-
-```bash
-# Read-only mode (default)
+# Run a specific server
 uv run vks-mcp-server
-
-# Enable create/update/delete operations
-uv run vks-mcp-server --allow-write
-
-# Enable reading Kubernetes Secrets / logs / events
-uv run vks-mcp-server --allow-sensitive-data-access
 ```
 
-The server speaks MCP over stdio, so point your MCP client (Claude Desktop,
-Cursor, …) at the command above.
-
-## Tools
-
-- **Cluster** — list/get/create/update/delete, kubeconfig, events, auto-upgrade,
-  delete dry-run, create validation
-- **NodeGroup** — list/get/create/update/delete, list nodes, delete dry-run
-- **Version** — list cluster versions, list node-group images
-- **Kubernetes** — list resources, manage a single resource (CRUD), apply YAML,
-  pod logs, resource events, list API versions
-- **Auth** — get the current access token
+See each project's own README for configuration and usage.
 
 ## Development
 
 ```bash
-uv run python -m pytest tests/ -v
+# Run a product's tests
+cd src/vks-mcp-server && uv run pytest tests/ -v
 ```
 
-Tests use `respx` for async HTTP mocking and `pytest-asyncio`. See `CLAUDE.md`
-for conventions on adding new tools.
+Conventions for adding tools and new servers live in [CLAUDE.md](CLAUDE.md).
 
 ## License
 
