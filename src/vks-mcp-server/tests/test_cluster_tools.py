@@ -157,6 +157,7 @@ def test_cluster_create_validate_missing_network_type():
     result = _cluster_create_validate({"body": body})
     text = result[0].text
     assert "networkType" in text
+    assert text != "valid"
 
 
 def test_cluster_create_validate_cilium_overlay_needs_cidr():
@@ -220,3 +221,20 @@ def test_cluster_create_validate_cilium_native_routing_needs_secondary_subnets()
     result = _cluster_create_validate({"body": body})
     text = result[0].text
     assert "secondarySubnets" in text
+
+
+def test_cluster_create_validate_tigera_valid():
+    """A TIGERA cluster with cidr is valid (TIGERA replaces the legacy CALICO)."""
+    body = {**_VALID_BODY, "networkType": "TIGERA"}
+    result = _cluster_create_validate({"body": body})
+    assert result[0].text == "valid"
+
+
+def test_cluster_create_validate_tigera_needs_cidr():
+    """TIGERA without cidr is rejected."""
+    body = {k: v for k, v in _VALID_BODY.items() if k != "cidr"}
+    body["networkType"] = "TIGERA"
+    result = _cluster_create_validate({"body": body})
+    text = result[0].text
+    assert "cidr" in text
+    assert text != "valid"
