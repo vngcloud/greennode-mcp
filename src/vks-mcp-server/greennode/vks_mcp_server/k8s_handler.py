@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 
 import yaml
 from pydantic import Field
@@ -65,6 +66,7 @@ class K8sHandler:
         self.mcp.tool(name="list_api_versions")(self.list_api_versions)
         self.mcp.tool(name="manage_k8s_resource")(self.manage_k8s_resource)
         self.mcp.tool(name="apply_yaml")(self.apply_yaml)
+        self.mcp.tool(name="generate_app_manifest")(self.generate_app_manifest)
 
     async def get_client(self, cluster_id: str, region: str | None = None) -> K8sApis:
         """Get a Kubernetes client for the specified cluster.
@@ -122,6 +124,117 @@ class K8sHandler:
         """
         resource = self.remove_managed_fields(resource)
         return self.filter_null_values(resource)
+
+    @staticmethod
+    def _validate_app_name(app_name: str) -> None:
+        """Validate app_name against Kubernetes RFC 1123 DNS-label rules.
+
+        Raises ValueError if invalid. Also prevents path traversal / injection.
+        """
+        if len(app_name) > 63:
+            raise ValueError(
+                f'Invalid app_name "{app_name}": must be at most 63 characters long'
+            )
+        if not re.match(r"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", app_name):
+            raise ValueError(
+                f'Invalid app_name "{app_name}": must consist of lowercase '
+                "alphanumeric characters or hyphens, and start and end with an "
+                "alphanumeric character"
+            )
+
+    def _load_yaml_template(self, template_files: list[str], values: Dict[str, str]) -> str:
+        """Load template files, substitute placeholders, and join with '---'."""
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates", "k8s-templates")
+        contents = []
+        for template_file in template_files:
+            with open(os.path.join(templates_dir, template_file)) as f:
+                content = f.read()
+            for key, value in values.items():
+                content = content.replace(key, value)
+            contents.append(content)
+        return "\n---\n".join(contents)
+
+    async def generate_app_manifest(
+        self,
+        app_name: str = Field(
+            ..., description="Application name; used for Deployment/Service names and labels."
+        ),
+        image_uri: str = Field(
+            ...,
+            description="Full container image URI with tag, e.g. 'vcr.vngcloud.vn/<repo>:<tag>'.",
+        ),
+        output_dir: str = Field(
+            ..., description="Absolute path to the directory to save the manifest file."
+        ),
+        port: int = Field(
+            80, ge=1, le=65535, description="Container/Service port the application listens on."
+        ),
+        replicas: int = Field(2, ge=1, description="Number of replicas to deploy."),
+        cpu: str = Field(
+            "100m", description="CPU request/limit per container, e.g. '100m', '500m'."
+        ),
+        memory: str = Field(
+            "128Mi", description="Memory request/limit per container, e.g. '128Mi', '1Gi'."
+        ),
+        namespace: str = Field("default", description="Kubernetes namespace to deploy to."),
+        load_balancer_scheme: Literal["internet-facing", "internal"] = Field(
+            "internal",
+            description="VKS LoadBalancer scheme, rendered as the vks.vngcloud.vn/scheme "
+            "annotation. 'internal' = private VPC only; 'internet-facing' = public.",
+        ),
+    ) -> str:
+        """Generate a Kubernetes Deployment + LoadBalancer Service manifest for an app.
+
+        Writes `<app_name>-manifest.yaml` to output_dir and returns the YAML, ready to
+        deploy with the apply_yaml tool. Use this instead of hand-writing manifests.
+
+        ## Requirements
+        - The server must be run with the `--allow-write` flag
+        - output_dir must be an absolute path
+
+        ## Generated resources
+        - Deployment: manages the app pods (replicas, resource requests/limits)
+        - Service: type LoadBalancer, exposed via the VKS LoadBalancer Controller
+          (vks.vngcloud.vn/scheme annotation controls internal vs internet-facing)
+
+        ## Workflow
+        1. generate_app_manifest  -> creates the YAML file
+        2. (review/edit the file if needed)
+        3. apply_yaml             -> applies it to the cluster
+        """
+        if not self.allow_write:
+            raise RuntimeError(
+                "Write access denied: generate_app_manifest requires --allow-write flag."
+            )
+        if not os.path.isabs(output_dir):
+            raise RuntimeError(f"Path must be absolute: {output_dir}")
+        self._validate_app_name(app_name)
+
+        template_values = {
+            "APP_NAME": app_name,
+            "NAMESPACE": namespace,
+            "REPLICAS": str(replicas),
+            "IMAGE_URI": image_uri,
+            "PORT": str(port),
+            "CPU": cpu,
+            "MEMORY": memory,
+            "LOAD_BALANCER_SCHEME": load_balancer_scheme,
+        }
+        combined_yaml = self._load_yaml_template(
+            ["deployment.yaml", "service.yaml"], template_values
+        )
+
+        os.makedirs(output_dir, exist_ok=True)
+        output_file_path = os.path.abspath(os.path.join(output_dir, f"{app_name}-manifest.yaml"))
+        with open(output_file_path, "w") as f:
+            f.write(combined_yaml)
+
+        logger.info("Generated manifest for %s at %s", app_name, output_file_path)
+        return (
+            f"Successfully generated manifest for **{app_name}** "
+            f"(image `{image_uri}`) and saved to `{output_file_path}`.\n\n"
+            f"```yaml\n{combined_yaml}\n```"
+        )
 
     async def list_k8s_resources(
         self,
