@@ -126,20 +126,17 @@ class K8sHandler:
         return self.filter_null_values(resource)
 
     @staticmethod
-    def _validate_app_name(app_name: str) -> None:
-        """Validate app_name against Kubernetes RFC 1123 DNS-label rules.
+    def _validate_dns_label(value: str, field: str) -> None:
+        """Validate value as a Kubernetes RFC 1123 DNS label.
 
-        Raises ValueError if invalid. Also prevents path traversal / injection.
+        Raises ValueError if invalid. Also prevents path traversal / YAML injection.
         """
-        if len(app_name) > 63:
+        if len(value) > 63:
+            raise ValueError(f'Invalid {field} "{value}": must be at most 63 characters long')
+        if not re.match(r"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", value):
             raise ValueError(
-                f'Invalid app_name "{app_name}": must be at most 63 characters long'
-            )
-        if not re.match(r"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", app_name):
-            raise ValueError(
-                f'Invalid app_name "{app_name}": must consist of lowercase '
-                "alphanumeric characters or hyphens, and start and end with an "
-                "alphanumeric character"
+                f'Invalid {field} "{value}": must consist of lowercase alphanumeric '
+                "characters or hyphens, and start and end with an alphanumeric character"
             )
 
     def _load_yaml_template(self, template_files: list[str], values: Dict[str, str]) -> str:
@@ -208,17 +205,18 @@ class K8sHandler:
             )
         if not os.path.isabs(output_dir):
             raise RuntimeError(f"Path must be absolute: {output_dir}")
-        self._validate_app_name(app_name)
+        self._validate_dns_label(app_name, "app_name")
+        self._validate_dns_label(namespace, "namespace")
 
         template_values = {
-            "APP_NAME": app_name,
-            "NAMESPACE": namespace,
-            "REPLICAS": str(replicas),
-            "IMAGE_URI": image_uri,
-            "PORT": str(port),
-            "CPU": cpu,
-            "MEMORY": memory,
-            "LOAD_BALANCER_SCHEME": load_balancer_scheme,
+            "__APP_NAME__": app_name,
+            "__NAMESPACE__": namespace,
+            "__REPLICAS__": str(replicas),
+            "__IMAGE_URI__": image_uri,
+            "__PORT__": str(port),
+            "__CPU__": cpu,
+            "__MEMORY__": memory,
+            "__LOAD_BALANCER_SCHEME__": load_balancer_scheme,
         }
         combined_yaml = self._load_yaml_template(
             ["deployment.yaml", "service.yaml"], template_values

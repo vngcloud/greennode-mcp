@@ -2,34 +2,34 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: APP_NAME
-  namespace: NAMESPACE
+  name: __APP_NAME__
+  namespace: __NAMESPACE__
   labels:
-    app.kubernetes.io/name: APP_NAME
+    app.kubernetes.io/name: __APP_NAME__
 spec:
-  replicas: REPLICAS
+  replicas: __REPLICAS__
   selector:
     matchLabels:
-      app.kubernetes.io/name: APP_NAME
+      app.kubernetes.io/name: __APP_NAME__
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: APP_NAME
+        app.kubernetes.io/name: __APP_NAME__
     spec:
       containers:
-      - name: APP_NAME
-        image: IMAGE_URI
+      - name: __APP_NAME__
+        image: __IMAGE_URI__
         imagePullPolicy: Always
         ports:
-        - containerPort: PORT
+        - containerPort: __PORT__
         securityContext:
           capabilities:
             drop:
             - NET_RAW
         resources:
           requests:
-            cpu: CPU
-            memory: MEMORY
+            cpu: __CPU__
+            memory: __MEMORY__
           limits:
-            cpu: CPU
-            memory: MEMORY
+            cpu: __CPU__
+            memory: __MEMORY__

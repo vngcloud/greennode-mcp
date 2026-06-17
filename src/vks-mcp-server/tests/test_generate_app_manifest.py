@@ -79,3 +79,28 @@ async def test_happy_path_writes_manifest(handler_factory, tmp_path):
     assert dep["spec"]["replicas"] == 3
     assert dep["spec"]["template"]["spec"]["containers"][0]["ports"][0]["containerPort"] == 8080
     assert "web-manifest.yaml" in result
+
+
+@pytest.mark.asyncio
+async def test_image_uri_with_placeholder_substring_preserved(handler_factory, tmp_path):
+    """An image URI containing an UPPERCASE placeholder substring must not be corrupted."""
+    h = handler_factory(allow_write=True)
+    image = "registry.example.com/PORTAL/CPU-app:MEMORY-1"
+    await h.generate_app_manifest(
+        app_name="web", image_uri=image, output_dir=str(tmp_path),
+        port=8080, replicas=2, cpu="100m", memory="128Mi",
+        namespace="default", load_balancer_scheme="internal",
+    )
+    text = (tmp_path / "web-manifest.yaml").read_text()
+    assert image in text
+
+
+@pytest.mark.asyncio
+async def test_rejects_invalid_namespace(handler_factory, tmp_path):
+    h = handler_factory(allow_write=True)
+    with pytest.raises(ValueError):
+        await h.generate_app_manifest(
+            app_name="web", image_uri="img:1", output_dir=str(tmp_path),
+            port=80, replicas=1, cpu="100m", memory="128Mi",
+            namespace="Bad_NS", load_balancer_scheme="internal",
+        )
