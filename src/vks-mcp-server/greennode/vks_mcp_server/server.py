@@ -2,7 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import hmac
+import os
+import sys
 from pathlib import Path
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from mcp.server.fastmcp import FastMCP
 
@@ -60,15 +68,31 @@ By default the server runs in **read-only** mode. Use the `--allow-write` flag t
 mcp = None
 
 
+class BearerTokenMiddleware(BaseHTTPMiddleware):
+    """Validate Authorization: Bearer <token> on every HTTP request."""
+
+    def __init__(self, app, api_key: str) -> None:
+        super().__init__(app)
+        self._expected = f"Bearer {api_key}".encode()
+
+    async def dispatch(self, request: Request, call_next):
+        auth = request.headers.get("Authorization", "").encode()
+        if not hmac.compare_digest(auth, self._expected):
+            return Response(
+                "Unauthorized",
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return await call_next(request)
+
+
 def create_server() -> FastMCP:
     """Create and return a FastMCP server instance."""
     return FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
 
 
-def main() -> None:
-    """Load config, create handlers, and run the MCP server."""
-    global mcp
-
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="GreenNode MCP Server -- manage VNG Kubernetes Service via MCP"
     )
@@ -84,7 +108,37 @@ def main() -> None:
         default=False,
         help="Enable access to sensitive data (required for reading Kubernetes Secrets)",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport mode: stdio (default) or streamable-http",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host for HTTP transport (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Bind port for HTTP transport (default: 8000)",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
+    )
+    return parser
+
+
+def main() -> None:
+    """Load config, create handlers, and run the MCP server."""
+    global mcp
+
+    args = _build_parser().parse_args()
+    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
@@ -102,7 +156,42 @@ def main() -> None:
         allow_sensitive_data_access=args.allow_sensitive_data_access,
     )
 
-    mcp.run()
+    if args.transport == "stdio":
+        mcp.run()
+    else:
+        # streamable-http mode
+        import uvicorn  # optional dep; only required for streamable-http mode
+
+        if not api_key:
+            print(
+                "Warning: --api-key not set. Server is unauthenticated. "
+                "Only use in a trusted network.",
+                file=sys.stderr,
+            )
+
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+
+        loopback = {"127.0.0.1", "localhost", "::1"}
+        if args.host not in loopback:
+            from mcp.server.fastmcp.server import TransportSecuritySettings
+
+            mcp.settings.transport_security = TransportSecuritySettings(
+                enable_dns_rebinding_protection=False,
+            )
+
+        starlette_app = mcp.streamable_http_app()
+        if api_key:
+            starlette_app.add_middleware(BearerTokenMiddleware, api_key=api_key)
+
+        uv_config = uvicorn.Config(
+            starlette_app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+        )
+        server = uvicorn.Server(uv_config)
+        asyncio.run(server.serve())
 
 
 if __name__ == "__main__":

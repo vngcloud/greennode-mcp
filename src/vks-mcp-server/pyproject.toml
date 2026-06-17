@@ -27,6 +27,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
+[project.optional-dependencies]
+http = ["uvicorn>=0.30.0"]
+
 [project.urls]
 homepage = "https://github.com/vngcloud/greennode-mcp"
 repository = "https://github.com/vngcloud/greennode-mcp.git"
