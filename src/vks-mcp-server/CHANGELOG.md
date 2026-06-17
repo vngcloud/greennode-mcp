@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   constraints, enriched `body` parameter descriptions, and structured docstrings
   across the cluster, nodegroup, version, and k8s tools.
 - `generate_app_manifest` tool: scaffolds a Deployment + LoadBalancer Service manifest (VKS `vks.vngcloud.vn/scheme` annotation) and writes it for `apply_yaml`.
+- `nodegroup_upgrade_version` tool: upgrade a node group's Kubernetes version (POST .../node-groups/{id}/upgrade-version).
+- `cluster_auto_healing_config` tool: configure cluster auto-healing (PATCH /v1/clusters/{id}/auto-healing-config).
 
 ## [0.1.0]
 

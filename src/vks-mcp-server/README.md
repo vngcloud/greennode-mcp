@@ -57,8 +57,8 @@ Cursor, …) at the command above.
 ## Tools
 
 - **Cluster** — list/get/create/update/delete, kubeconfig, events, auto-upgrade,
-  delete dry-run, create validation
-- **NodeGroup** — list/get/create/update/delete, list nodes, delete dry-run
+  delete dry-run, create validation, auto-healing config
+- **NodeGroup** — list/get/create/update/delete, list nodes, delete dry-run, version upgrade
 - **Version** — list cluster versions
 - **Kubernetes** — list resources, manage a single resource (CRUD), apply YAML,
   generate app manifest, pod logs, resource events, list API versions

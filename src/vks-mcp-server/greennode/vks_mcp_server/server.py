@@ -44,7 +44,9 @@ By default the server runs in **read-only** mode. Use the `--allow-write` flag t
 ### Write (requires --allow-write):
 - cluster_create, cluster_update, cluster_delete: Create, update, delete cluster
 - cluster_auto_upgrade_config, cluster_auto_upgrade_delete: Configure auto-upgrade
+- cluster_auto_healing_config: Configure cluster auto-healing
 - nodegroup_create, nodegroup_update, nodegroup_delete: Create, update, delete node group
+- nodegroup_upgrade_version: Upgrade a node group's Kubernetes version
 
 ### Kubernetes Resource Management (requires kubeconfig from VKS API):
 - list_k8s_resources: List K8s resources (Pods, Services, Deployments...)
