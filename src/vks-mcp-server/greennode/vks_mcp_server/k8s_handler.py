@@ -140,14 +140,18 @@ class K8sHandler:
             )
 
     def _load_yaml_template(self, template_files: list[str], values: Dict[str, str]) -> str:
-        """Load template files, substitute placeholders, and join with '---'."""
+        """Load template files, substitute placeholders in a single pass, join with '---'.
+
+        Single-pass regex substitution ensures a substituted VALUE that happens to
+        contain a placeholder token is never re-substituted.
+        """
         templates_dir = os.path.join(os.path.dirname(__file__), "templates", "k8s-templates")
+        pattern = re.compile("|".join(re.escape(key) for key in values))
         contents = []
         for template_file in template_files:
             with open(os.path.join(templates_dir, template_file)) as f:
                 content = f.read()
-            for key, value in values.items():
-                content = content.replace(key, value)
+            content = pattern.sub(lambda m: values[m.group(0)], content)
             contents.append(content)
         return "\n---\n".join(contents)
 

@@ -104,3 +104,17 @@ async def test_rejects_invalid_namespace(handler_factory, tmp_path):
             port=80, replicas=1, cpu="100m", memory="128Mi",
             namespace="Bad_NS", load_balancer_scheme="internal",
         )
+
+
+@pytest.mark.asyncio
+async def test_value_containing_delimited_token_not_re_substituted(handler_factory, tmp_path):
+    """A value that literally contains a delimited token must survive single-pass substitution."""
+    h = handler_factory(allow_write=True)
+    image = "registry.example.com/x__PORT__y:1"
+    await h.generate_app_manifest(
+        app_name="web", image_uri=image, output_dir=str(tmp_path),
+        port=8080, replicas=2, cpu="100m", memory="128Mi",
+        namespace="default", load_balancer_scheme="internal",
+    )
+    text = (tmp_path / "web-manifest.yaml").read_text()
+    assert image in text

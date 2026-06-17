@@ -115,7 +115,7 @@ cd src/vks-mcp-server && uv run pytest tests/ -v
 | `auth.py` | TokenManager — async OAuth2 Client Credentials with auto-refresh |
 | `client.py` | VksClient — async HTTP with retry + token refresh |
 | `validators.py` | ID format validation |
-| `cluster_handler.py` | 12 cluster tools (CRUD + kubeconfig + events + auto-upgrade + validation) |
+| `cluster_handler.py` | 11 cluster tools (CRUD + kubeconfig + events + auto-upgrade + validation) |
 | `nodegroup_handler.py` | 7 nodegroup tools (CRUD + nodes + dry-run) |
 | `k8s_handler.py` | 7 K8s tools (list/manage resources + logs + events + apply YAML + generate app manifest) |
 | `k8s_apis.py` | K8s API client wrapper using kubernetes library |
