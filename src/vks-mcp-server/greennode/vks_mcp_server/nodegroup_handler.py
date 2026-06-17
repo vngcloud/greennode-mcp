@@ -97,6 +97,7 @@ class NodeGroupHandler:
             self.mcp.tool(name="nodegroup_create")(self.nodegroup_create)
             self.mcp.tool(name="nodegroup_update")(self.nodegroup_update)
             self.mcp.tool(name="nodegroup_delete")(self.nodegroup_delete)
+            self.mcp.tool(name="nodegroup_upgrade_version")(self.nodegroup_upgrade_version)
 
     async def nodegroup_list(
         self,
@@ -185,6 +186,34 @@ class NodeGroupHandler:
         return (
             f"Delete request for node group `{nodegroup_id}`"
             f" in cluster `{cluster_id}` submitted successfully."
+        )
+
+    async def nodegroup_upgrade_version(
+        self,
+        cluster_id: str = Field(..., description="VKS Cluster ID"),
+        nodegroup_id: str = Field(..., description="Node Group ID to upgrade"),
+        kubernetes_version: str = Field(
+            ...,
+            description="Target Kubernetes version. Use cluster_versions_list to see valid versions.",
+        ),
+        region: str | None = Field(None, description="Region override"),
+    ) -> str:
+        """Upgrade a node group's Kubernetes version.
+
+        ## Requirements
+        - Server must run with --allow-write
+        """
+        validate_id(cluster_id, "cluster_id")
+        validate_id(nodegroup_id, "nodegroup_id")
+        result = await self.client.post(
+            f"/v1/clusters/{cluster_id}/node-groups/{nodegroup_id}/upgrade-version",
+            region=region,
+            json={"kubernetesVersion": kubernetes_version},
+        )
+        return (
+            f"Node group `{nodegroup_id}` upgrade to Kubernetes version "
+            f"`{kubernetes_version}` requested successfully.\n```json\n"
+            f"{json.dumps(result, indent=2, ensure_ascii=False)}\n```"
         )
 
     async def nodegroup_list_nodes(

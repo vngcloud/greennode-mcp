@@ -46,6 +46,16 @@ def _minimum(prop):
     return None
 
 
+def _maximum(prop):
+    """Extract the numeric 'maximum' whether top-level or inside anyOf (Optional)."""
+    if "maximum" in prop:
+        return prop["maximum"]
+    for sub in prop.get("anyOf", []):
+        if "maximum" in sub:
+            return sub["maximum"]
+    return None
+
+
 @pytest.mark.asyncio
 async def test_manage_k8s_resource_operation_is_enum(config, client):
     schema = await _schema_for(
@@ -115,6 +125,19 @@ async def test_nodegroup_create_body_documents_ranges(config, client):
     desc = schema["properties"]["body"]["description"]
     assert "20-5000" in desc
     assert "0-10" in desc
+
+
+@pytest.mark.asyncio
+async def test_cluster_auto_healing_config_constraints(config, client):
+    schema = await _schema_for(
+        lambda mcp: ClusterHandler(mcp, config, client, allow_write=True),
+        "cluster_auto_healing_config",
+    )
+    props = schema["properties"]
+    assert _minimum(props["timeout_unhealthy"]) == 5
+    assert _maximum(props["timeout_unhealthy"]) == 180
+    assert "enable_auto_healing" in schema["required"]
+    assert props["enable_auto_healing"]["type"] == "boolean"
 
 
 async def _description_for(register, tool_name):

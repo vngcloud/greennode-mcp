@@ -353,6 +353,7 @@ class ClusterHandler:
             self.mcp.tool(name="cluster_delete")(self.cluster_delete)
             self.mcp.tool(name="cluster_auto_upgrade_config")(self.cluster_auto_upgrade_config)
             self.mcp.tool(name="cluster_auto_upgrade_delete")(self.cluster_auto_upgrade_delete)
+            self.mcp.tool(name="cluster_auto_healing_config")(self.cluster_auto_healing_config)
 
     async def cluster_list(
         self,
@@ -503,6 +504,45 @@ class ClusterHandler:
             {"cluster_id": cluster_id, "region": region},
         )
         return result[0].text
+
+    async def cluster_auto_healing_config(
+        self,
+        cluster_id: str = Field(..., description="Cluster ID"),
+        enable_auto_healing: bool = Field(
+            ..., description="Enable or disable auto-healing for the cluster"
+        ),
+        max_unhealthy: str | None = Field(
+            None,
+            description="Max number or percentage of unhealthy nodes before remediation, e.g. '2' or '40%'",
+        ),
+        unhealthy_range: str | None = Field(
+            None, description="Range of unhealthy nodes allowed before remediation, e.g. '[3-5]'"
+        ),
+        timeout_unhealthy: int | None = Field(
+            None, ge=5, le=180, description="Minutes before considering a node unhealthy (5-180)"
+        ),
+        region: str | None = Field(None, description="Region override"),
+    ) -> str:
+        """Configure auto-healing for a VKS cluster.
+
+        ## Requirements
+        - Server must run with --allow-write
+        """
+        validate_id(cluster_id, "cluster_id")
+        body: dict = {"enableAutoHealing": enable_auto_healing}
+        if max_unhealthy is not None:
+            body["maxUnhealthy"] = max_unhealthy
+        if unhealthy_range is not None:
+            body["unhealthyRange"] = unhealthy_range
+        if timeout_unhealthy is not None:
+            body["timeoutUnhealthy"] = timeout_unhealthy
+        data = await self.client.patch(
+            f"/v1/clusters/{cluster_id}/auto-healing-config", region=region, json=body
+        )
+        return (
+            f"Auto-healing configuration for cluster `{cluster_id}` "
+            f"updated successfully (enabled={enable_auto_healing}).\n{data}"
+        )
 
     async def cluster_delete_dryrun(
         self,

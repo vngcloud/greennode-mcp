@@ -58,6 +58,24 @@ async def test_client_post(client):
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_client_patch(client):
+    """PATCH /v1/clusters/cid/auto-healing-config returns parsed JSON."""
+    _mock_iam(respx.mock)
+    payload = {"enableAutoHealing": True}
+    updated = {"id": "cid-1", "enableAutoHealing": True}
+    route = respx.patch(f"{VKS_BASE}/v1/clusters/cid-1/auto-healing-config").mock(
+        return_value=httpx.Response(200, json=updated),
+    )
+    result = await client.patch(
+        "/v1/clusters/cid-1/auto-healing-config",
+        json=payload,
+    )
+    assert result == updated
+    assert route.called
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_client_auto_retry_on_401(client):
     """On 401, client refreshes token and retries; second call succeeds."""
     _mock_iam(respx.mock)

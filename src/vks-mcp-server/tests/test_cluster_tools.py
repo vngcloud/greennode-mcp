@@ -1,14 +1,18 @@
 """Tests for cluster tools."""
 from __future__ import annotations
 
+import json as _json
+
 import pytest
 import respx
 import httpx
+from mcp.server.fastmcp import FastMCP
 
 from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import (
+    ClusterHandler,
     _cluster_list,
     _cluster_delete_dryrun,
     _cluster_create_validate,
@@ -25,8 +29,12 @@ def _mock_iam(mock: respx.MockRouter) -> None:
 
 
 @pytest.fixture
-def client(sample_config):
-    config = load_config(sample_config)
+def config(sample_config):
+    return load_config(sample_config)
+
+
+@pytest.fixture
+def client(config):
     token_manager = TokenManager(config)
     return VksClient(config, token_manager)
 
@@ -238,3 +246,34 @@ def test_cluster_create_validate_tigera_needs_cidr():
     text = result[0].text
     assert "cidr" in text
     assert text != "valid"
+
+
+# ---------------------------------------------------------------------------
+# cluster_auto_healing_config
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_cluster_auto_healing_config(config, client):
+    """cluster_auto_healing_config PATCHes only provided fields and reports success."""
+    _mock_iam(respx.mock)
+    handler = ClusterHandler(FastMCP("test"), config, client, allow_write=True)
+    cluster_id = "cid-1"
+    route = respx.patch(
+        f"{VKS_BASE}/v1/clusters/{cluster_id}/auto-healing-config"
+    ).mock(return_value=httpx.Response(200, json={"enableAutoHealing": True}))
+    result = await handler.cluster_auto_healing_config(
+        cluster_id=cluster_id,
+        enable_auto_healing=True,
+        max_unhealthy=None,
+        unhealthy_range=None,
+        timeout_unhealthy=30,
+        region=None,
+    )
+    assert "updated successfully" in result
+    assert route.called
+    body = _json.loads(route.calls.last.request.content)
+    assert body["enableAutoHealing"] is True
+    assert body["timeoutUnhealthy"] == 30
+    assert "maxUnhealthy" not in body

@@ -1,14 +1,21 @@
 """Tests for node group tools."""
 from __future__ import annotations
 
+import json as _json
+
 import pytest
 import respx
 import httpx
+from mcp.server.fastmcp import FastMCP
 
 from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
-from greennode.vks_mcp_server.nodegroup_handler import _nodegroup_list, _nodegroup_delete_dryrun
+from greennode.vks_mcp_server.nodegroup_handler import (
+    NodeGroupHandler,
+    _nodegroup_list,
+    _nodegroup_delete_dryrun,
+)
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
@@ -160,3 +167,26 @@ async def test_nodegroup_delete_dryrun_includes_node_count(config, client):
     )
     assert "10" in result
     assert "nodegroup_delete" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_nodegroup_upgrade_version(config, client):
+    """nodegroup_upgrade_version POSTs the target version and reports success."""
+    _mock_iam(respx.mock)
+    handler = NodeGroupHandler(FastMCP("test"), config, client, allow_write=True)
+    cluster_id = "cid-1"
+    nodegroup_id = "ng-1"
+    route = respx.post(
+        f"{VKS_BASE}/v1/clusters/{cluster_id}/node-groups/{nodegroup_id}/upgrade-version"
+    ).mock(return_value=httpx.Response(200, json={"status": "UPGRADING"}))
+    result = await handler.nodegroup_upgrade_version(
+        cluster_id=cluster_id,
+        nodegroup_id=nodegroup_id,
+        kubernetes_version="v1.29.0",
+        region=None,
+    )
+    assert "v1.29.0" in result
+    assert route.called
+    body = _json.loads(route.calls.last.request.content)
+    assert body == {"kubernetesVersion": "v1.29.0"}

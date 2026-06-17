@@ -179,6 +179,16 @@ class VksClient:
         """Send a PUT request."""
         return await self._request("PUT", path, region=region, params=params, json=json)
 
+    async def patch(
+        self,
+        path: str,
+        region: str | None = None,
+        params: dict[str, Any] | None = None,
+        json: Any = None,
+    ) -> Any:
+        """Send a PATCH request."""
+        return await self._request("PATCH", path, region=region, params=params, json=json)
+
     async def delete(
         self,
         path: str,
