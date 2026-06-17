@@ -135,3 +135,18 @@ async def test_version_tools_have_workflow_hints(config, client):
     )
     assert "cluster_create" in cv
     assert "nodegroup_create" in ng
+
+
+@pytest.mark.asyncio
+async def test_generate_app_manifest_schema(config, client):
+    schema = await _schema_for(
+        lambda mcp: K8sHandler(
+            mcp, config, client, allow_write=True, allow_sensitive_data_access=True
+        ),
+        "generate_app_manifest",
+    )
+    props = schema["properties"]
+    assert set(props["load_balancer_scheme"]["enum"]) == {"internet-facing", "internal"}
+    assert props["port"]["minimum"] == 1
+    assert props["port"]["maximum"] == 65535
+    assert props["replicas"]["minimum"] == 1
