@@ -22,7 +22,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 
-CONFIG_PATH = Path.home() / ".vks" / "config.json"
+CONFIG_PATH = Path.home() / ".greenode"
 
 SERVER_INSTRUCTIONS = """
 # GreenNode MCP Server

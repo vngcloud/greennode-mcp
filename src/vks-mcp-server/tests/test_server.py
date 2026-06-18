@@ -96,3 +96,12 @@ def test_bearer_middleware_returns_www_authenticate_header():
     response = client.get("/")
     assert "WWW-Authenticate" in response.headers
     assert response.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_config_path_points_to_greenode_dir():
+    """CONFIG_PATH must be the ~/.greenode directory (read by load_config), not a file."""
+    from pathlib import Path
+
+    from greennode.vks_mcp_server.server import CONFIG_PATH
+
+    assert CONFIG_PATH == Path.home() / ".greenode"
