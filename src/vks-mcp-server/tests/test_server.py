@@ -100,8 +100,43 @@ def test_bearer_middleware_returns_www_authenticate_header():
 
 def test_config_path_points_to_greenode_dir():
     """CONFIG_PATH must be the ~/.greenode directory (read by load_config), not a file."""
+    from greennode.vks_mcp_server.server import CONFIG_PATH
     from pathlib import Path
 
-    from greennode.vks_mcp_server.server import CONFIG_PATH
-
     assert CONFIG_PATH == Path.home() / ".greenode"
+
+
+from greennode.vks_mcp_server.server import create_server  # noqa: E402
+
+
+def test_health_route_registered_on_http_app():
+    app = create_server().streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/health" in paths
+
+
+def test_health_endpoint_returns_200():
+    app = create_server().streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+
+
+async def _health_ok(request):
+    return PlainTextResponse("ok")
+
+
+async def _mcp_stub(request):
+    return PlainTextResponse("mcp")
+
+
+_app_with_health = Starlette(routes=[Route("/health", _health_ok), Route("/mcp", _mcp_stub)])
+
+
+def test_bearer_middleware_exempts_health():
+    app = BearerTokenMiddleware(_app_with_health, api_key="secret123")
+    client = TestClient(app, raise_server_exceptions=False)
+    assert client.get("/health").status_code == 200
+    assert client.get("/mcp").status_code == 401
+    assert client.get("/mcp", headers={"Authorization": "Bearer secret123"}).status_code == 200

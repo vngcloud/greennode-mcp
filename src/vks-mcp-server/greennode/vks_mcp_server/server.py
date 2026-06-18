@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 
 CONFIG_PATH = Path.home() / ".greenode"
@@ -75,6 +75,9 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Reject requests lacking the expected Bearer token, else forward them."""
+        # Health probes are unauthenticated so liveness/readiness checks work.
+        if request.url.path == "/health":
+            return await call_next(request)
         auth = request.headers.get("Authorization", "").encode()
         if not hmac.compare_digest(auth, self._expected):
             return Response(
@@ -87,7 +90,14 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
 
 def create_server() -> FastMCP:
     """Create and return a FastMCP server instance."""
-    return FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
+    server = FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
+
+    @server.custom_route("/health", methods=["GET"])
+    async def health(request: Request) -> Response:
+        """Liveness/readiness probe endpoint (no authentication required)."""
+        return JSONResponse({"status": "ok"})
+
+    return server
 
 
 def _build_parser() -> argparse.ArgumentParser:

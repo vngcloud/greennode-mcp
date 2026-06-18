@@ -13,13 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SERVER="vks-mcp-server"
+# Probe the /health endpoint (unauthenticated) on the HTTP transport port.
+PORT="${MCP_PORT:-8080}"
 
-# Check if the server process is running
-if pgrep -f "/app/.venv/bin/$SERVER" > /dev/null; then
-  echo -n "$SERVER is running";
-  exit 0;
-fi;
-
-# Unhealthy
-exit 1;
+exec python -c "import sys, urllib.request; \
+sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${PORT}/health', timeout=3).getcode() == 200 else 1)"

@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `generate_app_manifest` tool: scaffolds a Deployment + LoadBalancer Service manifest (VKS `vks.vngcloud.vn/scheme` annotation) and writes it for `apply_yaml`.
 - `nodegroup_upgrade_version` tool: upgrade a node group's Kubernetes version (POST .../node-groups/{id}/upgrade-version).
 - `cluster_auto_healing_config` tool: configure cluster auto-healing (PATCH /v1/clusters/{id}/auto-healing-config).
+- HTTP transport: unauthenticated `/health` endpoint for liveness/readiness probes (exempt from the API-key guard); the container now serves streamable-http on port **8080**.
+
+### Fixed
+
+- `CONFIG_PATH` now points to the `~/.greenode` directory (was `~/.vks/config.json`, which broke credential loading).
 
 ## [0.1.0]
 

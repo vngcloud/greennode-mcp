@@ -48,9 +48,9 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 COPY ./src/vks-mcp-server/docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 
-EXPOSE 8000
+EXPOSE 8080
 USER app
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["vks-mcp-server"]
-CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8080"]
