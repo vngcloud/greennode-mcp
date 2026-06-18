@@ -1,28 +1,60 @@
-name: Deploy (stub)
+name: Deploy
 
-# STUB: manual-only deploy that builds & pushes the image to a registry.
-# Inert until these repo settings are configured (Settings → Secrets and variables → Actions):
+# Builds and pushes the image to a registry, per GitHub Environment.
+#
+# Uses GitHub Environments so develop and production can have DIFFERENT registry
+# config. Create two environments (Settings → Environments): `develop` and
+# `production`. In EACH environment set:
 #   vars.IMAGE_REGISTRY        e.g. vcr.vngcloud.vn/<namespace>
 #   secrets.REGISTRY_USERNAME
 #   secrets.REGISTRY_PASSWORD
-# Intended target: VNG Container Registry (vcr.vngcloud.vn) → image deployed to VKS.
+# (Add production protection rules / required reviewers as desired.)
+#
+# Triggers:
+#   push to `develop`  -> deploy to the `develop` environment   (tag: <commit sha>)
+#   push tag `v*`      -> deploy to the `production` environment (tag: <git tag>)
+#   manual dispatch    -> pick the environment from the dropdown
+#
+# Inert until the chosen environment has IMAGE_REGISTRY set (job is skipped).
 
 on:
+  push:
+    branches: [develop]
+    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: environment
+        required: true
 
 jobs:
   build-and-push:
     name: Build & push image
-    if: ${{ vars.IMAGE_REGISTRY != '' }}
     runs-on: ubuntu-24.04
+    # workflow_dispatch -> chosen input; tag push -> production; develop push -> develop
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production' || 'develop') }}
+    if: ${{ vars.IMAGE_REGISTRY != '' }}
     permissions:
       contents: read
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: meta
+        run: |
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Log in to registry
         run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${{ vars.IMAGE_REGISTRY }}" -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+
       - name: Build image
-        run: docker build -f src/vks-mcp-server/Dockerfile -t "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ github.sha }}" .
+        run: docker build -f src/vks-mcp-server/Dockerfile -t "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ steps.meta.outputs.tag }}" .
+
       - name: Push image
-        run: docker push "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ github.sha }}"
+        run: docker push "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ steps.meta.outputs.tag }}"
