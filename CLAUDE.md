@@ -22,7 +22,7 @@ Monorepo organized as a **uv workspace** (root `pyproject.toml`, `members = ["sr
 GitHub Actions live in `.github/workflows/`:
 
 - `ci.yml` — runs on pull requests and pushes to `main` and `develop`. Installs the workspace with `uv sync --all-packages --all-groups`, then runs ruff lint (`ruff check .`), ruff format check (`ruff format --check .`), and pytest in `src/vks-mcp-server`, followed by a `build` job that builds the Docker image (`src/vks-mcp-server/Dockerfile`, build context = repo root).
-- `deploy.yml` — builds and pushes the image to a registry, using **GitHub Environments** so `develop` and `production` can have different registry config. Triggers: push to `develop` → `develop` environment (image tag = commit sha); push tag `v*` → `production` environment (image tag = git tag); manual `workflow_dispatch` → pick the environment. In each environment (Settings → Environments) set the `IMAGE_REGISTRY` variable (e.g. `vcr.vngcloud.vn/<namespace>`) and the `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` secrets; the job is skipped until `IMAGE_REGISTRY` is set.
+- `deploy.yml` — builds and pushes the image to a registry, using **GitHub Environments** so `develop` and `production` can have different registry config. Triggers: push to `develop` whose head commit message contains `[build]` → `develop` environment (image tag = commit sha); push tag `v*` → `production` environment (image tag = git tag). In each environment (Settings → Environments) set the `IMAGE_REGISTRY` variable (e.g. `vcr.vngcloud.vn/<namespace>`) and the `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` secrets; the job is skipped until `IMAGE_REGISTRY` is set.
 
 ## Code conventions
 

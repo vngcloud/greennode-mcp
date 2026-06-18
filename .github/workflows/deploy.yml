@@ -11,9 +11,10 @@ name: Deploy
 # (Add production protection rules / required reviewers as desired.)
 #
 # Triggers:
-#   push to `develop`  -> deploy to the `develop` environment   (tag: <commit sha>)
-#   push tag `v*`      -> deploy to the `production` environment (tag: <git tag>)
-#   manual dispatch    -> pick the environment from the dropdown
+#   push to `develop` whose head commit message contains "[build]"
+#        -> deploy to the `develop` environment   (image tag = <commit sha>)
+#   push tag `v*`
+#        -> deploy to the `production` environment (image tag = <git tag>)
 #
 # Inert until the chosen environment has IMAGE_REGISTRY set (job is skipped).
 
@@ -21,20 +22,18 @@ on:
   push:
     branches: [develop]
     tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Target environment
-        type: environment
-        required: true
 
 jobs:
   build-and-push:
     name: Build & push image
     runs-on: ubuntu-24.04
-    # workflow_dispatch -> chosen input; tag push -> production; develop push -> develop
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'production' || 'develop') }}
-    if: ${{ vars.IMAGE_REGISTRY != '' }}
+    # tag push -> production; develop push -> develop
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'develop' }}
+    # production: any v* tag. develop: only when the head commit message has "[build]".
+    if: >-
+      ${{ vars.IMAGE_REGISTRY != '' &&
+          (startsWith(github.ref, 'refs/tags/v') ||
+           contains(github.event.head_commit.message, '[build]')) }}
     permissions:
       contents: read
     timeout-minutes: 15
