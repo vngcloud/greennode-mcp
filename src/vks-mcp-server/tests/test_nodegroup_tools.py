@@ -1,21 +1,21 @@
 """Tests for node group tools."""
+
 from __future__ import annotations
 
+import httpx
 import json as _json
-
 import pytest
 import respx
-import httpx
-from mcp.server.fastmcp import FastMCP
-
-from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.nodegroup_handler import (
     NodeGroupHandler,
-    _nodegroup_list,
     _nodegroup_delete_dryrun,
+    _nodegroup_list,
 )
+from mcp.server.fastmcp import FastMCP
+
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
@@ -23,9 +23,12 @@ IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 
 def _mock_iam(mock: respx.MockRouter) -> None:
     """Register a mock IAM token response."""
-    mock.post(IAM_URL).mock(return_value=httpx.Response(
-        200, json={"accessToken": "mocked-token", "expiresIn": 1800},
-    ))
+    mock.post(IAM_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"accessToken": "mocked-token", "expiresIn": 1800},
+        )
+    )
 
 
 @pytest.fixture
@@ -47,12 +50,20 @@ async def test_nodegroup_list(config, client):
     cluster_id = "cluster-abc123"
     ng_items = [
         {
-            "name": "ng-default", "uid": "ng-uid-001", "status": "ACTIVE",
-            "nodeCount": 3, "imageId": "img-001", "createdAt": "2024-01-15T10:00:00Z",
+            "name": "ng-default",
+            "uid": "ng-uid-001",
+            "status": "ACTIVE",
+            "nodeCount": 3,
+            "imageId": "img-001",
+            "createdAt": "2024-01-15T10:00:00Z",
         },
         {
-            "name": "ng-worker", "uid": "ng-uid-002", "status": "ACTIVE",
-            "nodeCount": 5, "imageId": "img-002", "createdAt": "2024-01-16T12:00:00Z",
+            "name": "ng-worker",
+            "uid": "ng-uid-002",
+            "status": "ACTIVE",
+            "nodeCount": 5,
+            "imageId": "img-002",
+            "createdAt": "2024-01-16T12:00:00Z",
         },
     ]
     cluster_data = {"name": "my-cluster", "uid": cluster_id, "status": "ACTIVE"}
@@ -74,10 +85,16 @@ async def test_nodegroup_list_with_region(config, client):
     """nodegroup_list passes region parameter correctly."""
     _mock_iam(respx.mock)
     cluster_id = "cluster-xyz"
-    ng_items = [{
-        "name": "ng-han", "uid": "ng-han-001", "status": "ACTIVE",
-        "nodeCount": 2, "imageId": "img-han", "createdAt": "2024-02-01T00:00:00Z",
-    }]
+    ng_items = [
+        {
+            "name": "ng-han",
+            "uid": "ng-han-001",
+            "status": "ACTIVE",
+            "nodeCount": 2,
+            "imageId": "img-han",
+            "createdAt": "2024-02-01T00:00:00Z",
+        }
+    ]
     respx.get(f"{VKS_BASE}/v1/clusters/{cluster_id}/node-groups").mock(
         return_value=httpx.Response(200, json=ng_items),
     )
@@ -94,10 +111,16 @@ async def test_nodegroup_list_cluster_fetch_fails(config, client):
     """nodegroup_list still works when cluster GET fails (falls back to cluster_id)."""
     _mock_iam(respx.mock)
     cluster_id = "cluster-fallback"
-    ng_items = [{
-        "name": "ng-one", "uid": "ng-one-001", "status": "ACTIVE",
-        "nodeCount": 1, "imageId": "img-x", "createdAt": "2024-03-01T00:00:00Z",
-    }]
+    ng_items = [
+        {
+            "name": "ng-one",
+            "uid": "ng-one-001",
+            "status": "ACTIVE",
+            "nodeCount": 1,
+            "imageId": "img-x",
+            "createdAt": "2024-03-01T00:00:00Z",
+        }
+    ]
     respx.get(f"{VKS_BASE}/v1/clusters/{cluster_id}/node-groups").mock(
         return_value=httpx.Response(200, json=ng_items),
     )
@@ -133,14 +156,21 @@ async def test_nodegroup_delete_dryrun(config, client):
     cluster_id = "cluster-abc123"
     nodegroup_id = "ng-uid-001"
     ng_detail = {
-        "name": "ng-default", "uid": "ng-uid-001", "status": "ACTIVE",
-        "nodeCount": 3, "imageId": "img-001", "createdAt": "2024-01-15T10:00:00Z",
+        "name": "ng-default",
+        "uid": "ng-uid-001",
+        "status": "ACTIVE",
+        "nodeCount": 3,
+        "imageId": "img-001",
+        "createdAt": "2024-01-15T10:00:00Z",
     }
     respx.get(f"{VKS_BASE}/v1/clusters/{cluster_id}/node-groups/{nodegroup_id}").mock(
         return_value=httpx.Response(200, json=ng_detail),
     )
     result = await _nodegroup_delete_dryrun(
-        config, client, cluster_id=cluster_id, nodegroup_id=nodegroup_id,
+        config,
+        client,
+        cluster_id=cluster_id,
+        nodegroup_id=nodegroup_id,
     )
     assert "YOU ARE ABOUT TO DELETE NODE GROUP" in result
     assert nodegroup_id in result
@@ -156,14 +186,21 @@ async def test_nodegroup_delete_dryrun_includes_node_count(config, client):
     cluster_id = "cluster-prod"
     nodegroup_id = "ng-prod-001"
     ng_detail = {
-        "name": "ng-production", "uid": "ng-prod-001", "status": "ACTIVE",
-        "nodeCount": 10, "imageId": "img-prod", "createdAt": "2024-01-01T00:00:00Z",
+        "name": "ng-production",
+        "uid": "ng-prod-001",
+        "status": "ACTIVE",
+        "nodeCount": 10,
+        "imageId": "img-prod",
+        "createdAt": "2024-01-01T00:00:00Z",
     }
     respx.get(f"{VKS_BASE}/v1/clusters/{cluster_id}/node-groups/{nodegroup_id}").mock(
         return_value=httpx.Response(200, json=ng_detail),
     )
     result = await _nodegroup_delete_dryrun(
-        config, client, cluster_id=cluster_id, nodegroup_id=nodegroup_id,
+        config,
+        client,
+        cluster_id=cluster_id,
+        nodegroup_id=nodegroup_id,
     )
     assert "10" in result
     assert "nodegroup_delete" in result

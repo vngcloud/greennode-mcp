@@ -1,14 +1,13 @@
 """Node group management handler for GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import json
-
-from pydantic import Field
-
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import VksConfig
 from greennode.vks_mcp_server.models import format_nodegroup_detail, format_nodegroup_table
 from greennode.vks_mcp_server.validators import validate_id
+from pydantic import Field
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +77,9 @@ async def _nodegroup_delete_dryrun(
 # NodeGroupHandler class
 # ---------------------------------------------------------------------------
 
+
 class NodeGroupHandler:
+    """Register and serve VKS node-group-management MCP tools."""
 
     def __init__(self, mcp, config: VksConfig, client: VksClient, allow_write: bool = False):
         self.mcp = mcp
@@ -106,14 +107,18 @@ class NodeGroupHandler:
     ) -> str:
         """Lists all node groups in a VKS cluster. Returns a markdown table."""
         return await _nodegroup_list(
-            self.config, self.client,
-            cluster_id=cluster_id, region=region,
+            self.config,
+            self.client,
+            cluster_id=cluster_id,
+            region=region,
         )
 
     async def nodegroup_get(
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        nodegroup_id: str = Field(..., description="Node Group ID, e.g. 'ng-f5674ebc-30be-47e2-b4ef-5d4474deae58'"),
+        nodegroup_id: str = Field(
+            ..., description="Node Group ID, e.g. 'ng-f5674ebc-30be-47e2-b4ef-5d4474deae58'"
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Gets full detail of a specific node group. Returns a markdown key-value table."""
@@ -128,12 +133,15 @@ class NodeGroupHandler:
     async def nodegroup_create(
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID to add the node group to"),
-        body: dict = Field(..., description=(
-            "CreateNodeGroupDto body (JSON object). Required fields: name, "
-            "numNodes (0-10), flavorId, diskSize (20-5000), diskType, "
-            "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig "
-            "(optional: os = ubuntu|linux)."
-        )),
+        body: dict = Field(
+            ...,
+            description=(
+                "CreateNodeGroupDto body (JSON object). Required fields: name, "
+                "numNodes (0-10), flavorId, diskSize (20-5000), diskType, "
+                "enablePrivateNodes, securityGroups, sshKeyId, upgradeConfig "
+                "(optional: os = ubuntu|linux)."
+            ),
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Create a new node group in a VKS cluster.
@@ -153,11 +161,14 @@ class NodeGroupHandler:
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         nodegroup_id: str = Field(..., description="Node Group ID to update"),
-        body: dict = Field(..., description=(
-            "Update body (JSON object). No fields are required. Optional: "
-            "numNodes (0-10), securityGroups, labels, taints, autoScaleConfig, "
-            "upgradeConfig."
-        )),
+        body: dict = Field(
+            ...,
+            description=(
+                "Update body (JSON object). No fields are required. Optional: "
+                "numNodes (0-10), securityGroups, labels, taints, autoScaleConfig, "
+                "upgradeConfig."
+            ),
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Updates a node group. Requires --allow-write flag."""
@@ -269,6 +280,9 @@ class NodeGroupHandler:
     ) -> str:
         """Preview what will be deleted when deleting a node group."""
         return await _nodegroup_delete_dryrun(
-            self.config, self.client,
-            cluster_id=cluster_id, nodegroup_id=nodegroup_id, region=region,
+            self.config,
+            self.client,
+            cluster_id=cluster_id,
+            nodegroup_id=nodegroup_id,
+            region=region,
         )

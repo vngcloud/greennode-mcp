@@ -1,14 +1,14 @@
 """HTTP client for VKS API with retry on 5xx/timeout and auto-refresh on 401."""
+
 from __future__ import annotations
 
 import asyncio
-import logging
-from typing import Any
-
 import httpx
-
+import logging
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.config import VksConfig
+from typing import Any
+
 
 LOG = logging.getLogger(__name__)
 
@@ -55,8 +55,6 @@ class VksClient:
         endpoints = self._config.get_endpoints(region)
         url = f"{endpoints.vks}{path}"
 
-        last_error: Exception | None = None
-
         for attempt in range(MAX_RETRIES + 1):
             token = await self._token_manager.get_token()
             headers = {"Authorization": f"Bearer {token}"}
@@ -71,12 +69,14 @@ class VksClient:
                         json=json,
                     )
             except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError) as exc:
-                last_error = exc
                 if attempt < MAX_RETRIES:
-                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    delay = RETRY_BASE_DELAY * (2**attempt)
                     LOG.debug(
                         "Request timeout/error (attempt %d/%d), retrying in %ds: %s",
-                        attempt + 1, MAX_RETRIES + 1, delay, exc,
+                        attempt + 1,
+                        MAX_RETRIES + 1,
+                        delay,
+                        exc,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -102,10 +102,13 @@ class VksClient:
             # Retryable server errors (5xx)
             if resp.status_code in RETRYABLE_STATUS_CODES:
                 if attempt < MAX_RETRIES:
-                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    delay = RETRY_BASE_DELAY * (2**attempt)
                     LOG.debug(
                         "Server error %d (attempt %d/%d), retrying in %ds",
-                        resp.status_code, attempt + 1, MAX_RETRIES + 1, delay,
+                        resp.status_code,
+                        attempt + 1,
+                        MAX_RETRIES + 1,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -205,6 +208,4 @@ class VksClient:
         params: dict[str, Any] | None = None,
     ) -> str:
         """Send a GET request and return the raw response text."""
-        return await self._request(
-            "GET", path, region=region, params=params, raw_response=True
-        )
+        return await self._request("GET", path, region=region, params=params, raw_response=True)

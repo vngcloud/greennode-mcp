@@ -1,13 +1,14 @@
 """Kubernetes API client for the GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import base64
 import logging
 import os
 import tempfile
-
 from greennode.vks_mcp_server.models import Operation
 from typing import Any, Dict, List, Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +298,9 @@ class K8sApis:
             field_selector = f"involvedObject.kind={kind},involvedObject.name={name}"
 
             if namespace:
-                events_response = event_resource.get(namespace=namespace, field_selector=field_selector)
+                events_response = event_resource.get(
+                    namespace=namespace, field_selector=field_selector
+                )
             else:
                 events_response = event_resource.get(field_selector=field_selector)
 
@@ -308,15 +311,17 @@ class K8sApis:
                 last_timestamp = event_dict.get("lastTimestamp")
                 source = event_dict.get("source", None)
 
-                result.append({
-                    "first_timestamp": first_timestamp,
-                    "last_timestamp": last_timestamp,
-                    "count": event_dict.get("count"),
-                    "message": event_dict.get("message", ""),
-                    "reason": event_dict.get("reason", ""),
-                    "reporting_component": source.get("component", "") if source else "",
-                    "type": event_dict.get("type", ""),
-                })
+                result.append(
+                    {
+                        "first_timestamp": first_timestamp,
+                        "last_timestamp": last_timestamp,
+                        "count": event_dict.get("count"),
+                        "message": event_dict.get("message", ""),
+                        "reason": event_dict.get("reason", ""),
+                        "reporting_component": source.get("component", "") if source else "",
+                        "type": event_dict.get("type", ""),
+                    }
+                )
 
             return result
         except Exception as e:
@@ -368,9 +373,7 @@ class K8sApis:
             )
             return logs_response
         except Exception as e:
-            raise ValueError(
-                f"Error getting logs from pod {namespace}/{pod_name}: {str(e)}"
-            )
+            raise ValueError(f"Error getting logs from pod {namespace}/{pod_name}: {str(e)}")
 
     def get_api_versions(self) -> List[str]:
         """Get preferred API versions from the Kubernetes cluster.

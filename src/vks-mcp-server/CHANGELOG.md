@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GitHub Actions CI (ruff lint/format + pytest) and a build job; a manual deploy stub for image build/push.
 - Self-documenting tool schemas: `Literal` enums and numeric `Field(ge=, le=)`
   constraints, enriched `body` parameter descriptions, and structured docstrings
   across the cluster, nodegroup, version, and k8s tools.

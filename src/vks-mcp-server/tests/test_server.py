@@ -1,15 +1,14 @@
 """Tests for server CLI arg parsing and BearerTokenMiddleware."""
+
 from __future__ import annotations
 
 import argparse
-
 import pytest
+from greennode.vks_mcp_server.server import _build_parser
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
-
-from greennode.vks_mcp_server.server import _build_parser
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

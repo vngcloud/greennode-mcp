@@ -1,0 +1,28 @@
+name: Deploy (stub)
+
+# STUB: manual-only deploy that builds & pushes the image to a registry.
+# Inert until these repo settings are configured (Settings → Secrets and variables → Actions):
+#   vars.IMAGE_REGISTRY        e.g. vcr.vngcloud.vn/<namespace>
+#   secrets.REGISTRY_USERNAME
+#   secrets.REGISTRY_PASSWORD
+# Intended target: VNG Container Registry (vcr.vngcloud.vn) → image deployed to VKS.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    name: Build & push image
+    if: ${{ vars.IMAGE_REGISTRY != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${{ vars.IMAGE_REGISTRY }}" -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+      - name: Build image
+        run: docker build -f src/vks-mcp-server/Dockerfile -t "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ github.sha }}" .
+      - name: Push image
+        run: docker push "${{ vars.IMAGE_REGISTRY }}/greennode-vks-mcp:${{ github.sha }}"

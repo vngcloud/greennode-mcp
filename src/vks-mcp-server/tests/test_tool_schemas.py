@@ -4,18 +4,18 @@ The existing handler tests call internal functions directly and bypass FastMCP
 validation, so Literal / Field(ge,le) constraints are only observable on the
 registered tool's inputSchema. These tests assert those constraints.
 """
+
 from __future__ import annotations
 
 import pytest
-from mcp.server.fastmcp import FastMCP
-
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
-from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.cluster_handler import ClusterHandler
+from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.k8s_handler import K8sHandler
 from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
 from greennode.vks_mcp_server.version_handler import VersionHandler
+from mcp.server.fastmcp import FastMCP
 
 
 @pytest.fixture

@@ -1,15 +1,16 @@
 """Pydantic BaseModel classes for GreenNode MCP Server responses."""
+
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
-
 from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _date(dt: str | None) -> str:
     """Return the first 10 characters of a date string, or empty string."""
@@ -30,6 +31,7 @@ def _kv_table(data: list[tuple[str, str]]) -> str:
 # Cluster models
 # ---------------------------------------------------------------------------
 
+
 class ClusterSummary(BaseModel):
     """Summary of a VKS cluster, used in list responses."""
 
@@ -42,6 +44,7 @@ class ClusterSummary(BaseModel):
 
     @classmethod
     def from_api(cls, data: dict) -> ClusterSummary:
+        """Build a ClusterSummary from a raw VKS API cluster dict."""
         return cls(
             id=data.get("uid", data.get("id", "")),
             name=data.get("name", ""),
@@ -60,9 +63,11 @@ class ClusterListData(BaseModel):
 
     @property
     def total(self) -> int:
+        """Return the number of clusters in the list."""
         return len(self.clusters)
 
     def to_markdown(self) -> str:
+        """Render the cluster list as a markdown table."""
         if not self.clusters:
             return f"No clusters found (region: {self.region})"
         rows = [
@@ -110,6 +115,7 @@ class ClusterDetail(BaseModel):
 
     @classmethod
     def from_api(cls, c: dict) -> ClusterDetail:
+        """Build a ClusterDetail from a raw VKS API cluster dict."""
         network_type = c.get("networkType", c.get("network", {}).get("type", ""))
         vpc_id = c.get("vpcId", "")
         subnet_id = c.get("subnetId", "")
@@ -144,6 +150,7 @@ class ClusterDetail(BaseModel):
         )
 
     def to_markdown(self) -> str:
+        """Render the cluster details as markdown."""
         if self.auto_upgrade_config:
             auto_upgrade = (
                 f"{self.auto_upgrade_config.get('weekdays', '')}"
@@ -196,6 +203,7 @@ class ClusterDetail(BaseModel):
 # Node group models
 # ---------------------------------------------------------------------------
 
+
 class NodeGroupSummary(BaseModel):
     """Summary of a VKS node group, used in list responses."""
 
@@ -208,6 +216,7 @@ class NodeGroupSummary(BaseModel):
 
     @classmethod
     def from_api(cls, data: dict) -> NodeGroupSummary:
+        """Build a NodeGroupSummary from a raw VKS API node-group dict."""
         return cls(
             id=data.get("uid", data.get("id", "")),
             name=data.get("name", ""),
@@ -222,13 +231,17 @@ class NodeGroupListData(BaseModel):
     """Wrapper for node group list response."""
 
     cluster_name: str = Field("", description="Parent cluster name")
-    node_groups: list[NodeGroupSummary] = Field(default_factory=list, description="List of node groups")
+    node_groups: list[NodeGroupSummary] = Field(
+        default_factory=list, description="List of node groups"
+    )
 
     @property
     def total(self) -> int:
+        """Return the number of node groups in the list."""
         return len(self.node_groups)
 
     def to_markdown(self) -> str:
+        """Render the node-group list as a markdown table."""
         if not self.node_groups:
             return f"No node groups found in cluster {self.cluster_name}"
         rows = [
@@ -267,6 +280,7 @@ class NodeGroupDetail(BaseModel):
 
     @classmethod
     def from_api(cls, ng: dict) -> NodeGroupDetail:
+        """Build a NodeGroupDetail from a raw VKS API node-group dict."""
         disk_size = str(ng.get("disk", {}).get("size", ng.get("diskSize", "")))
         disk_type = ng.get("disk", {}).get("type", ng.get("diskType", ""))
         return cls(
@@ -291,7 +305,10 @@ class NodeGroupDetail(BaseModel):
         )
 
     def to_markdown(self) -> str:
-        disk = f"{self.disk_size} GB ({self.disk_type})" if self.disk_size and self.disk_type else ""
+        """Render the node-group details as markdown."""
+        disk = (
+            f"{self.disk_size} GB ({self.disk_type})" if self.disk_size and self.disk_type else ""
+        )
 
         if self.upgrade_config:
             uc = self.upgrade_config
@@ -306,10 +323,14 @@ class NodeGroupDetail(BaseModel):
             autoscale = "not configured"
 
         labels = ", ".join(f"{k}={v}" for k, v in self.labels.items()) if self.labels else ""
-        taints = ", ".join(
-            f"{t.get('key', '')}={t.get('value', '')}:{t.get('effect', '')}"
-            for t in self.taints
-        ) if self.taints else ""
+        taints = (
+            ", ".join(
+                f"{t.get('key', '')}={t.get('value', '')}:{t.get('effect', '')}"
+                for t in self.taints
+            )
+            if self.taints
+            else ""
+        )
         sgs = ", ".join(str(s) for s in self.security_groups) if self.security_groups else ""
 
         data = [
@@ -337,6 +358,7 @@ class NodeGroupDetail(BaseModel):
 # ---------------------------------------------------------------------------
 # Format helpers (used by handlers)
 # ---------------------------------------------------------------------------
+
 
 def format_cluster_table(items: list[dict], region: str) -> str:
     """Format a list of clusters as a markdown table.
@@ -393,6 +415,7 @@ def format_nodegroup_detail(ng: dict) -> str:
 # ---------------------------------------------------------------------------
 # Kubernetes resource models
 # ---------------------------------------------------------------------------
+
 
 class Operation(str, Enum):
     """Kubernetes resource operations."""

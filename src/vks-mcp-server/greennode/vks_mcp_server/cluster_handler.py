@@ -1,16 +1,14 @@
 """Cluster management handler for GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import re
-from typing import Any
-
-from mcp import types
-from pydantic import Field
-
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import VksConfig
 from greennode.vks_mcp_server.models import format_cluster_detail, format_cluster_table
 from greennode.vks_mcp_server.validators import validate_id
+from mcp import types
+from pydantic import Field
 
 
 # ---------------------------------------------------------------------------
@@ -26,8 +24,12 @@ _NETWORK_NEEDS_SECONDARY_SUBNETS = {"CILIUM_NATIVE_ROUTING"}
 
 _REQUIRED_CLUSTER_FIELDS = ["vpcId", "networkType", "version", "releaseChannel"]
 _REQUIRED_NODEGROUP_FIELDS = [
-    "flavorId", "diskSize", "diskType",
-    "securityGroups", "sshKeyId", "upgradeConfig",
+    "flavorId",
+    "diskSize",
+    "diskType",
+    "securityGroups",
+    "sshKeyId",
+    "upgradeConfig",
 ]
 
 
@@ -116,9 +118,7 @@ async def _cluster_get_kubeconfig(
     cluster_id = arguments["cluster_id"]
     validate_id(cluster_id, "cluster_id")
     region = arguments.get("region")
-    yaml_text = await client.get_raw(
-        f"/v1/clusters/{cluster_id}/kubeconfig", region=region
-    )
+    yaml_text = await client.get_raw(f"/v1/clusters/{cluster_id}/kubeconfig", region=region)
     return [types.TextContent(type="text", text=yaml_text)]
 
 
@@ -171,7 +171,8 @@ async def _cluster_auto_upgrade_config(
     body = {"weekdays": arguments["weekdays"], "time": arguments["time"]}
     data = await client.put(
         f"/v1/clusters/{cluster_id}/auto-upgrade-config",
-        region=region, json=body,
+        region=region,
+        json=body,
     )
     text = f"Auto-upgrade configuration for cluster `{cluster_id}` updated successfully.\n{data}"
     return [types.TextContent(type="text", text=text)]
@@ -201,9 +202,7 @@ async def _cluster_delete_dryrun(
     region = arguments.get("region")
 
     cluster = await client.get(f"/v1/clusters/{cluster_id}", region=region)
-    ng_data = await client.get(
-        f"/v1/clusters/{cluster_id}/node-groups", region=region
-    )
+    ng_data = await client.get(f"/v1/clusters/{cluster_id}/node-groups", region=region)
 
     node_groups = ng_data.get("items", ng_data) if isinstance(ng_data, dict) else ng_data
 
@@ -330,7 +329,9 @@ def _cluster_create_validate(
 # ClusterHandler class
 # ---------------------------------------------------------------------------
 
+
 class ClusterHandler:
+    """Register and serve VKS cluster-management MCP tools."""
 
     def __init__(self, mcp, config: VksConfig, client: VksClient, allow_write: bool = False):
         self.mcp = mcp
@@ -358,8 +359,12 @@ class ClusterHandler:
     async def cluster_list(
         self,
         page: int | None = Field(None, ge=0, description="Page number (starts at 0)"),
-        pageSize: int | None = Field(None, ge=1, description="Number of clusters per page (default 50)"),
-        region: str | None = Field(None, description="Region override, e.g. 'HCM-3' or 'HAN'. Defaults to config region"),
+        pageSize: int | None = Field(
+            None, ge=1, description="Number of clusters per page (default 50)"
+        ),
+        region: str | None = Field(
+            None, description="Region override, e.g. 'HCM-3' or 'HAN'. Defaults to config region"
+        ),
     ) -> str:
         """Lists all VKS clusters in the configured region. Returns a markdown table with cluster name, ID, status, version, node count, and creation date. Supports pagination."""
         args = {}
@@ -374,7 +379,9 @@ class ClusterHandler:
 
     async def cluster_get(
         self,
-        cluster_id: str = Field(..., description="VKS Cluster ID, e.g. 'k8s-2ff9b24c-a58c-497c-b526-79630b0d3c92'"),
+        cluster_id: str = Field(
+            ..., description="VKS Cluster ID, e.g. 'k8s-2ff9b24c-a58c-497c-b526-79630b0d3c92'"
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Gets full detail of a specific VKS cluster by ID. Returns a markdown key-value table with all cluster properties."""
@@ -383,20 +390,25 @@ class ClusterHandler:
 
     async def cluster_create(
         self,
-        body: dict = Field(..., description=(
-            "CreateClusterComboDto body (JSON object). Required top-level fields: "
-            "name, releaseChannel, version, networkType, vpcId, enablePrivateCluster, nodeGroups. "
-            "Valid values - releaseChannel: RAPID | STABLE (default STABLE); "
-            "networkType: CILIUM_OVERLAY | CILIUM_NATIVE_ROUTING | TIGERA. "
-            "Conditional: networkType CILIUM_OVERLAY or TIGERA requires 'cidr'; "
-            "CILIUM_NATIVE_ROUTING requires 'secondarySubnets'. "
-            "Each nodeGroups[] item needs: name, flavorId, diskSize (20-5000), "
-            "diskType, numNodes (0-10), securityGroups, sshKeyId, upgradeConfig "
-            "(optional: os = ubuntu|linux). "
-            "Call cluster_create_validate first to check the body."
-        )),
+        body: dict = Field(
+            ...,
+            description=(
+                "CreateClusterComboDto body (JSON object). Required top-level fields: "
+                "name, releaseChannel, version, networkType, vpcId, enablePrivateCluster, nodeGroups. "
+                "Valid values - releaseChannel: RAPID | STABLE (default STABLE); "
+                "networkType: CILIUM_OVERLAY | CILIUM_NATIVE_ROUTING | TIGERA. "
+                "Conditional: networkType CILIUM_OVERLAY or TIGERA requires 'cidr'; "
+                "CILIUM_NATIVE_ROUTING requires 'secondarySubnets'. "
+                "Each nodeGroups[] item needs: name, flavorId, diskSize (20-5000), "
+                "diskType, numNodes (0-10), securityGroups, sshKeyId, upgradeConfig "
+                "(optional: os = ubuntu|linux). "
+                "Call cluster_create_validate first to check the body."
+            ),
+        ),
         poc: bool = Field(False, description="Whether this is a Proof-of-Concept cluster"),
-        autoRenewal: bool = Field(True, description="Enable auto-renewal for cluster subscription"),
+        autoRenewal: bool = Field(
+            True, description="Enable auto-renewal for cluster subscription"
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Create a new VKS cluster.
@@ -419,11 +431,14 @@ class ClusterHandler:
     async def cluster_update(
         self,
         cluster_id: str = Field(..., description="Cluster ID to update"),
-        body: dict = Field(..., description=(
-            "Fields to update as a JSON object (partial update supported). "
-            "Provide only the top-level cluster fields you want to change. "
-            "Use cluster_get first to see current values."
-        )),
+        body: dict = Field(
+            ...,
+            description=(
+                "Fields to update as a JSON object (partial update supported). "
+                "Provide only the top-level cluster fields you want to change. "
+                "Use cluster_get first to see current values."
+            ),
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Update an existing VKS cluster (partial update supported).
@@ -439,7 +454,9 @@ class ClusterHandler:
 
     async def cluster_delete(
         self,
-        cluster_id: str = Field(..., description="Cluster ID to delete. IRREVERSIBLE. Use cluster_delete_dryrun first."),
+        cluster_id: str = Field(
+            ..., description="Cluster ID to delete. IRREVERSIBLE. Use cluster_delete_dryrun first."
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Deletes a VKS cluster. IRREVERSIBLE. Requires --allow-write flag. Use cluster_delete_dryrun first."""
@@ -482,7 +499,9 @@ class ClusterHandler:
     async def cluster_auto_upgrade_config(
         self,
         cluster_id: str = Field(..., description="Cluster ID"),
-        weekdays: str = Field(..., description="Comma-separated days of week for auto-upgrade, e.g. 'Mon,Wed,Fri'"),
+        weekdays: str = Field(
+            ..., description="Comma-separated days of week for auto-upgrade, e.g. 'Mon,Wed,Fri'"
+        ),
         time: str = Field(..., description="Time of day in HH:mm format, e.g. '03:00'"),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
@@ -558,7 +577,10 @@ class ClusterHandler:
 
     def cluster_create_validate(
         self,
-        body: dict = Field(..., description="CreateClusterComboDto body to validate. Checks name regex, required fields, disk size, node count, network type logic."),
+        body: dict = Field(
+            ...,
+            description="CreateClusterComboDto body to validate. Checks name regex, required fields, disk size, node count, network type logic.",
+        ),
     ) -> str:
         """Validates a CreateClusterComboDto body without actually creating a cluster. Returns 'valid' or a list of validation errors."""
         result = _cluster_create_validate({"body": body})

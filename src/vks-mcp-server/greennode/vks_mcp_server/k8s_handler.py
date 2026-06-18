@@ -1,15 +1,12 @@
 """Kubernetes handler for the GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import json
 import logging
 import os
 import re
-
 import yaml
-from pydantic import Field
-from typing import Any, Dict, Literal, Optional
-
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import VksConfig
 from greennode.vks_mcp_server.k8s_apis import K8sApis
@@ -25,6 +22,9 @@ from greennode.vks_mcp_server.models import (
     PodLogsData,
     ResourceSummary,
 )
+from pydantic import Field
+from typing import Any, Dict, Literal, Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -241,11 +241,26 @@ class K8sHandler:
     async def list_k8s_resources(
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        kind: str = Field(..., description="Kind of the Kubernetes resources to list (e.g., 'Pod', 'Service', 'Deployment').\n            Use the list_api_versions tool to find available resource kinds."),
-        api_version: str = Field(..., description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Use the list_api_versions tool to find available API versions."),
-        namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resources to list.\n            If not provided, resources will be listed across all namespaces (for namespaced resources)."),
-        label_selector: Optional[str] = Field(None, description="Label selector to filter resources (e.g., 'app=nginx,tier=frontend').\n            Uses the same syntax as kubectl's --selector flag."),
-        field_selector: Optional[str] = Field(None, description="Field selector to filter resources (e.g., 'metadata.name=my-pod,status.phase=Running').\n            Uses the same syntax as kubectl's --field-selector flag."),
+        kind: str = Field(
+            ...,
+            description="Kind of the Kubernetes resources to list (e.g., 'Pod', 'Service', 'Deployment').\n            Use the list_api_versions tool to find available resource kinds.",
+        ),
+        api_version: str = Field(
+            ...,
+            description="API version of the Kubernetes resources (e.g., 'v1', 'apps/v1', 'networking.k8s.io/v1').\n            Use the list_api_versions tool to find available API versions.",
+        ),
+        namespace: Optional[str] = Field(
+            None,
+            description="Namespace of the Kubernetes resources to list.\n            If not provided, resources will be listed across all namespaces (for namespaced resources).",
+        ),
+        label_selector: Optional[str] = Field(
+            None,
+            description="Label selector to filter resources (e.g., 'app=nginx,tier=frontend').\n            Uses the same syntax as kubectl's --selector flag.",
+        ),
+        field_selector: Optional[str] = Field(
+            None,
+            description="Field selector to filter resources (e.g., 'metadata.name=my-pod,status.phase=Running').\n            Uses the same syntax as kubectl's --field-selector flag.",
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """List Kubernetes resources of a specific kind.
@@ -271,7 +286,8 @@ class K8sHandler:
         try:
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.list_resources(
-                kind, api_version,
+                kind,
+                api_version,
                 namespace=namespace,
                 label_selector=label_selector,
                 field_selector=field_selector,
@@ -314,11 +330,29 @@ class K8sHandler:
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         namespace: str = Field(..., description="Kubernetes namespace where the pod is located."),
         pod_name: str = Field(..., description="Name of the pod to retrieve logs from."),
-        container_name: Optional[str] = Field(None, description="Name of the specific container to get logs from. Required only if the pod contains multiple containers."),
-        since_seconds: Optional[int] = Field(None, ge=0, description="Only return logs newer than this many seconds. Useful for getting recent logs without retrieving the entire history."),
-        tail_lines: int = Field(100, ge=1, description="Number of lines to return from the end of the logs. Default: 100. Use higher values for more context."),
-        limit_bytes: int = Field(10240, ge=1, description="Maximum number of bytes to return. Default: 10KB (10240 bytes). Prevents retrieving extremely large log files."),
-        previous: bool = Field(False, description="Return previous terminated container logs. Default: false. Useful to get logs for pods that are restarting."),
+        container_name: Optional[str] = Field(
+            None,
+            description="Name of the specific container to get logs from. Required only if the pod contains multiple containers.",
+        ),
+        since_seconds: Optional[int] = Field(
+            None,
+            ge=0,
+            description="Only return logs newer than this many seconds. Useful for getting recent logs without retrieving the entire history.",
+        ),
+        tail_lines: int = Field(
+            100,
+            ge=1,
+            description="Number of lines to return from the end of the logs. Default: 100. Use higher values for more context.",
+        ),
+        limit_bytes: int = Field(
+            10240,
+            ge=1,
+            description="Maximum number of bytes to return. Default: 10KB (10240 bytes). Prevents retrieving extremely large log files.",
+        ),
+        previous: bool = Field(
+            False,
+            description="Return previous terminated container logs. Default: false. Useful to get logs for pods that are restarting.",
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Get logs from a pod in a Kubernetes cluster.
@@ -339,7 +373,9 @@ class K8sHandler:
         and log lines as an array of strings.
         """
         if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading pod logs requires --allow-sensitive-data-access flag.")
+            raise RuntimeError(
+                "Access denied: reading pod logs requires --allow-sensitive-data-access flag."
+            )
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
@@ -360,7 +396,10 @@ class K8sHandler:
             container_info = f" (container: {container_name})" if container_name else ""
             logger.info(
                 "Retrieved %d log lines from pod %s/%s%s",
-                len(log_lines), namespace, pod_name, container_info,
+                len(log_lines),
+                namespace,
+                pod_name,
+                container_info,
             )
 
             data = PodLogsData(
@@ -378,9 +417,15 @@ class K8sHandler:
     async def get_k8s_events(
         self,
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        kind: str = Field(..., description='Kind of the involved object (e.g., "Pod", "Deployment", "Service"). Must match the resource kind exactly.'),
+        kind: str = Field(
+            ...,
+            description='Kind of the involved object (e.g., "Pod", "Deployment", "Service"). Must match the resource kind exactly.',
+        ),
         name: str = Field(..., description="Name of the involved object to get events for."),
-        namespace: Optional[str] = Field(None, description="Namespace of the involved object. Required for namespaced resources (like Pods, Deployments).\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes)."),
+        namespace: Optional[str] = Field(
+            None,
+            description="Namespace of the involved object. Required for namespaced resources (like Pods, Deployments).\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes).",
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Get events related to a specific Kubernetes resource.
@@ -407,7 +452,9 @@ class K8sHandler:
         - Recent events are most relevant for current issues
         """
         if not self.allow_sensitive_data_access:
-            raise RuntimeError("Access denied: reading Kubernetes events requires --allow-sensitive-data-access flag.")
+            raise RuntimeError(
+                "Access denied: reading Kubernetes events requires --allow-sensitive-data-access flag."
+            )
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
@@ -487,13 +534,31 @@ class K8sHandler:
 
     async def manage_k8s_resource(
         self,
-        operation: Literal["create", "replace", "patch", "delete", "read"] = Field(..., description="Operation to perform on the resource:\n            - create: Create a new resource\n            - replace: Replace an existing resource\n            - patch: Update specific fields of an existing resource\n            - delete: Delete an existing resource\n            - read: Get details of an existing resource\n            Use list_k8s_resources for listing multiple resources."),
+        operation: Literal["create", "replace", "patch", "delete", "read"] = Field(
+            ...,
+            description="Operation to perform on the resource:\n            - create: Create a new resource\n            - replace: Replace an existing resource\n            - patch: Update specific fields of an existing resource\n            - delete: Delete an existing resource\n            - read: Get details of an existing resource\n            Use list_k8s_resources for listing multiple resources.",
+        ),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        kind: str = Field(..., description='Kind of the Kubernetes resource (e.g., "Pod", "Service", "Deployment").'),
-        api_version: str = Field(..., description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1").'),
-        name: Optional[str] = Field(None, description="Name of the Kubernetes resource. Required for all operations except create (where it can be specified in the body)."),
-        namespace: Optional[str] = Field(None, description="Namespace of the Kubernetes resource. Required for namespaced resources.\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes)."),
-        body: Optional[Dict[str, Any]] = Field(None, description="Resource definition as a dictionary. Required for create, replace, and patch operations.\n            For create and replace, this should be a complete resource definition.\n            For patch, this should contain only the fields to update."),
+        kind: str = Field(
+            ...,
+            description='Kind of the Kubernetes resource (e.g., "Pod", "Service", "Deployment").',
+        ),
+        api_version: str = Field(
+            ...,
+            description='API version of the Kubernetes resource (e.g., "v1", "apps/v1", "networking.k8s.io/v1").',
+        ),
+        name: Optional[str] = Field(
+            None,
+            description="Name of the Kubernetes resource. Required for all operations except create (where it can be specified in the body).",
+        ),
+        namespace: Optional[str] = Field(
+            None,
+            description="Namespace of the Kubernetes resource. Required for namespaced resources.\n            Not required for cluster-scoped resources (like Nodes, PersistentVolumes).",
+        ),
+        body: Optional[Dict[str, Any]] = Field(
+            None,
+            description="Resource definition as a dictionary. Required for create, replace, and patch operations.\n            For create and replace, this should be a complete resource definition.\n            For patch, this should contain only the fields to update.",
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Manage a single Kubernetes resource with various operations.
@@ -533,20 +598,33 @@ class K8sHandler:
             raise ValueError(f"Invalid operation: {operation}. Valid operations are: {valid_ops}")
 
         # Check write permissions
-        if operation_enum in (Operation.CREATE, Operation.REPLACE, Operation.PATCH, Operation.DELETE):
+        if operation_enum in (
+            Operation.CREATE,
+            Operation.REPLACE,
+            Operation.PATCH,
+            Operation.DELETE,
+        ):
             if not self.allow_write:
-                raise RuntimeError(f"Write access denied: {operation} operation requires --allow-write flag.")
+                raise RuntimeError(
+                    f"Write access denied: {operation} operation requires --allow-write flag."
+                )
 
         # Check sensitive data access for Secrets
         if kind.lower() == "secret" and operation_enum == Operation.READ:
             if not self.allow_sensitive_data_access:
-                raise RuntimeError("Access denied: reading Kubernetes Secrets requires --allow-sensitive-data-access flag.")
+                raise RuntimeError(
+                    "Access denied: reading Kubernetes Secrets requires --allow-sensitive-data-access flag."
+                )
 
         try:
             k8s_client = await self.get_client(cluster_id, region)
             response = k8s_client.manage_resource(
-                operation_enum, kind, api_version,
-                name=name, namespace=namespace, body=body,
+                operation_enum,
+                kind,
+                api_version,
+                name=name,
+                namespace=namespace,
+                body=body,
             )
 
             resource_name = f"{namespace}/{name}" if namespace else (name or "")
@@ -581,10 +659,19 @@ class K8sHandler:
 
     async def apply_yaml(
         self,
-        yaml_path: str = Field(..., description="Absolute path to the YAML file to apply.\n            IMPORTANT: Must be an absolute path (e.g., '/home/user/manifests/app.yaml') as the MCP client and server might not run from the same location."),
+        yaml_path: str = Field(
+            ...,
+            description="Absolute path to the YAML file to apply.\n            IMPORTANT: Must be an absolute path (e.g., '/home/user/manifests/app.yaml') as the MCP client and server might not run from the same location.",
+        ),
         cluster_id: str = Field(..., description="VKS Cluster ID"),
-        namespace: str = Field(..., description="Kubernetes namespace to apply resources to. Will be used for namespaced resources that do not specify a namespace."),
-        force: bool = Field(True, description="Whether to update resources if they already exist (similar to kubectl apply). Set to false to only create new resources."),
+        namespace: str = Field(
+            ...,
+            description="Kubernetes namespace to apply resources to. Will be used for namespaced resources that do not specify a namespace.",
+        ),
+        force: bool = Field(
+            True,
+            description="Whether to update resources if they already exist (similar to kubectl apply). Set to false to only create new resources.",
+        ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
         """Apply a Kubernetes YAML from a local file.

@@ -1,12 +1,12 @@
 """IAM token management for GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import base64
-import time
-
 import httpx
-
+import time
 from greennode.vks_mcp_server.config import VksConfig
+
 
 IAM_TOKEN_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 
@@ -41,14 +41,10 @@ class TokenManager:
             async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
                 response = await client.post(IAM_TOKEN_URL, json=body, headers=headers)
         except httpx.ConnectError as exc:
-            raise RuntimeError(
-                f"Cannot connect to IAM API: {exc}"
-            ) from exc
+            raise RuntimeError(f"Cannot connect to IAM API: {exc}") from exc
 
         if response.status_code != 200:
-            raise RuntimeError(
-                f"Authentication failed: HTTP {response.status_code} from IAM API."
-            )
+            raise RuntimeError(f"Authentication failed: HTTP {response.status_code} from IAM API.")
 
         data = response.json()
         self._access_token = data["accessToken"]

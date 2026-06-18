@@ -1,4 +1,5 @@
 """Configuration loading and region endpoint resolution for GreenNode MCP Server."""
+
 from __future__ import annotations
 
 import configparser
@@ -94,9 +95,7 @@ def load_config(config_dir: Path) -> VksConfig:
         cred_parser.read(credentials_path)
 
         if not cred_parser.has_section(profile):
-            raise ValueError(
-                f"Credentials file missing section [{profile}]: {credentials_path}"
-            )
+            raise ValueError(f"Credentials file missing section [{profile}]: {credentials_path}")
 
         if not client_id:
             client_id = cred_parser.get(profile, "client_id", fallback=None)

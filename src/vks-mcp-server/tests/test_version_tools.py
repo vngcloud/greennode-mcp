@@ -1,23 +1,27 @@
 """Tests for version and image tools."""
+
 from __future__ import annotations
 
+import httpx
 import pytest
 import respx
-import httpx
-
-from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.version_handler import _cluster_versions_list
+
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 
 
 def _mock_iam(mock: respx.MockRouter) -> None:
-    mock.post(IAM_URL).mock(return_value=httpx.Response(
-        200, json={"accessToken": "mocked-token", "expiresIn": 1800},
-    ))
+    mock.post(IAM_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"accessToken": "mocked-token", "expiresIn": 1800},
+        )
+    )
 
 
 @pytest.fixture
@@ -35,6 +39,7 @@ CLUSTER_VERSIONS_RESPONSE = {
         {"version": "v1.27.0", "stage": "STABLE", "deprecatedAt": None, "enable": False},
     ]
 }
+
 
 @respx.mock
 @pytest.mark.asyncio

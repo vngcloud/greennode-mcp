@@ -1,4 +1,5 @@
 """GreenNode MCP Server entry point — follows EKS MCP Server handler pattern."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,23 +7,20 @@ import asyncio
 import hmac
 import os
 import sys
+from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.auth_handler import AuthHandler
+from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.cluster_handler import ClusterHandler
+from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.k8s_handler import K8sHandler
+from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
+from greennode.vks_mcp_server.version_handler import VersionHandler
+from mcp.server.fastmcp import FastMCP
 from pathlib import Path
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from mcp.server.fastmcp import FastMCP
-
-from greennode.vks_mcp_server.auth import TokenManager
-from greennode.vks_mcp_server.client import VksClient
-from greennode.vks_mcp_server.config import load_config
-
-from greennode.vks_mcp_server.auth_handler import AuthHandler
-from greennode.vks_mcp_server.cluster_handler import ClusterHandler
-from greennode.vks_mcp_server.k8s_handler import K8sHandler
-from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
-from greennode.vks_mcp_server.version_handler import VersionHandler
 
 CONFIG_PATH = Path.home() / ".vks" / "config.json"
 
@@ -76,6 +74,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         self._expected = f"Bearer {api_key}".encode()
 
     async def dispatch(self, request: Request, call_next):
+        """Reject requests lacking the expected Bearer token, else forward them."""
         auth = request.headers.get("Authorization", "").encode()
         if not hmac.compare_digest(auth, self._expected):
             return Response(
@@ -151,7 +150,9 @@ def main() -> None:
     NodeGroupHandler(mcp, config, client, allow_write=args.allow_write)
     VersionHandler(mcp, config, client)
     K8sHandler(
-        mcp, config, client,
+        mcp,
+        config,
+        client,
         allow_write=args.allow_write,
         allow_sensitive_data_access=args.allow_sensitive_data_access,
     )

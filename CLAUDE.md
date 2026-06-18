@@ -17,6 +17,13 @@ Monorepo organized as a **uv workspace** (root `pyproject.toml`, `members = ["sr
 - CLI entry point: `vks-mcp-server` → `greennode.vks_mcp_server.server:main`
 - Future products: add as `src/<name>-mcp-server/` siblings under the same `greennode` namespace
 
+## CI/CD
+
+GitHub Actions live in `.github/workflows/`:
+
+- `ci.yml` — runs on pull requests and pushes to `main`. Installs the workspace with `uv sync --all-packages --all-groups`, then runs ruff lint (`ruff check .`), ruff format check (`ruff format --check .`), and pytest in `src/vks-mcp-server`, followed by a `build` job that builds the Docker image (`src/vks-mcp-server/Dockerfile`, build context = repo root).
+- `deploy.yml` — manual stub (`workflow_dispatch`) that builds and pushes the image to a registry. Inert until configured: set the `IMAGE_REGISTRY` repo variable (e.g. `vcr.vngcloud.vn/<namespace>`) and the `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` secrets.
+
 ## Code conventions
 
 - All source code text must be in **English** — error messages, descriptions, comments, docstrings

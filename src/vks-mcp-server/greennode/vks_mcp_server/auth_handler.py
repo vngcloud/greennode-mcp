@@ -1,4 +1,5 @@
 """Authentication handler for GreenNode MCP Server."""
+
 from __future__ import annotations
 
 from greennode.vks_mcp_server.auth import TokenManager
@@ -6,6 +7,7 @@ from greennode.vks_mcp_server.config import VksConfig
 
 
 class AuthHandler:
+    """Register and serve authentication-related MCP tools."""
 
     def __init__(self, mcp, config: VksConfig, token_manager: TokenManager):
         self.mcp = mcp

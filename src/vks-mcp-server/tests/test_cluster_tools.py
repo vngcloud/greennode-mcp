@@ -1,31 +1,34 @@
 """Tests for cluster tools."""
+
 from __future__ import annotations
 
+import httpx
 import json as _json
-
 import pytest
 import respx
-import httpx
-from mcp.server.fastmcp import FastMCP
-
-from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import (
     ClusterHandler,
-    _cluster_list,
-    _cluster_delete_dryrun,
     _cluster_create_validate,
+    _cluster_delete_dryrun,
+    _cluster_list,
 )
+from greennode.vks_mcp_server.config import load_config
+from mcp.server.fastmcp import FastMCP
+
 
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 VKS_BASE = "https://vks.api.vngcloud.vn"
 
 
 def _mock_iam(mock: respx.MockRouter) -> None:
-    mock.post(IAM_URL).mock(return_value=httpx.Response(
-        200, json={"accessToken": "mocked-token", "expiresIn": 1800},
-    ))
+    mock.post(IAM_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"accessToken": "mocked-token", "expiresIn": 1800},
+        )
+    )
 
 
 @pytest.fixture
@@ -49,10 +52,16 @@ def client(config):
 async def test_cluster_list(client):
     """cluster_list calls GET /v1/clusters and formats the result."""
     _mock_iam(respx.mock)
-    items = [{
-        "name": "my-cluster", "uid": "uid-abc", "status": "ACTIVE",
-        "version": "1.28", "nodeCount": 3, "createdAt": "2024-01-15T10:00:00Z",
-    }]
+    items = [
+        {
+            "name": "my-cluster",
+            "uid": "uid-abc",
+            "status": "ACTIVE",
+            "version": "1.28",
+            "nodeCount": 3,
+            "createdAt": "2024-01-15T10:00:00Z",
+        }
+    ]
     respx.get(f"{VKS_BASE}/v1/clusters").mock(
         return_value=httpx.Response(200, json={"items": items}),
     )
@@ -87,8 +96,11 @@ async def test_cluster_delete_dryrun(client):
     _mock_iam(respx.mock)
     cluster_id = "cid-xyz"
     cluster_data = {
-        "uid": "cid-xyz", "name": "prod-cluster", "status": "ACTIVE",
-        "version": "1.29", "nodeCount": 5,
+        "uid": "cid-xyz",
+        "name": "prod-cluster",
+        "status": "ACTIVE",
+        "version": "1.29",
+        "nodeCount": 5,
     }
     node_groups = [
         {"uid": "ng-1", "name": "worker-ng", "nodeCount": 3},
@@ -196,7 +208,7 @@ def test_cluster_create_validate_missing_enable_private_cluster():
 
 
 def test_cluster_create_validate_bad_disk_size():
-    """diskSize out of range returns an error."""
+    """DiskSize out of range returns an error."""
     bad_ng = {**_VALID_NODEGROUP, "diskSize": 10}
     body = {**_VALID_BODY, "nodeGroups": [bad_ng]}
     result = _cluster_create_validate({"body": body})
@@ -205,7 +217,7 @@ def test_cluster_create_validate_bad_disk_size():
 
 
 def test_cluster_create_validate_bad_num_nodes():
-    """numNodes out of range returns an error."""
+    """NumNodes out of range returns an error."""
     bad_ng = {**_VALID_NODEGROUP, "numNodes": 15}
     body = {**_VALID_BODY, "nodeGroups": [bad_ng]}
     result = _cluster_create_validate({"body": body})
@@ -224,7 +236,11 @@ def test_cluster_create_validate_bad_nodegroup_name():
 
 def test_cluster_create_validate_cilium_native_routing_needs_secondary_subnets():
     """CILIUM_NATIVE_ROUTING without secondarySubnets returns an error."""
-    body = {**_VALID_BODY, "networkType": "CILIUM_NATIVE_ROUTING", "nodeGroups": [_VALID_NODEGROUP]}
+    body = {
+        **_VALID_BODY,
+        "networkType": "CILIUM_NATIVE_ROUTING",
+        "nodeGroups": [_VALID_NODEGROUP],
+    }
     body.pop("cidr", None)
     result = _cluster_create_validate({"body": body})
     text = result[0].text
@@ -260,9 +276,9 @@ async def test_cluster_auto_healing_config(config, client):
     _mock_iam(respx.mock)
     handler = ClusterHandler(FastMCP("test"), config, client, allow_write=True)
     cluster_id = "cid-1"
-    route = respx.patch(
-        f"{VKS_BASE}/v1/clusters/{cluster_id}/auto-healing-config"
-    ).mock(return_value=httpx.Response(200, json={"enableAutoHealing": True}))
+    route = respx.patch(f"{VKS_BASE}/v1/clusters/{cluster_id}/auto-healing-config").mock(
+        return_value=httpx.Response(200, json={"enableAutoHealing": True})
+    )
     result = await handler.cluster_auto_healing_config(
         cluster_id=cluster_id,
         enable_auto_healing=True,

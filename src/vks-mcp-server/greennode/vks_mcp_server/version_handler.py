@@ -1,11 +1,11 @@
 """Version and image handler for GreenNode MCP Server."""
-from __future__ import annotations
 
-from mcp import types
-from pydantic import Field
+from __future__ import annotations
 
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import VksConfig
+from mcp import types
+from pydantic import Field
 
 
 # ---------------------------------------------------------------------------
@@ -28,16 +28,18 @@ async def _cluster_versions_list(
     items = [v for v in items if v.get("enable", True)]
 
     # Find stable versions for the "recommended" marker
-    stable_versions = [v for v in items if v.get("stage", "").upper() == "STABLE" and not v.get("deprecatedAt")]
+    stable_versions = [
+        v for v in items if v.get("stage", "").upper() == "STABLE" and not v.get("deprecatedAt")
+    ]
     stable_versions.sort(key=lambda v: v.get("version", ""), reverse=True)
     recommended_name = stable_versions[0].get("version", "") if stable_versions else ""
 
-    lines = list((
+    lines = [
         "Available Kubernetes versions:",
         "",
         "| # | Version | Stage | Deprecated At | Note |",
         "|---|---------|-------|---------------|---------|",
-    ))
+    ]
 
     for idx, v in enumerate(items, start=1):
         name = v.get("version", "")
@@ -53,7 +55,9 @@ async def _cluster_versions_list(
 # VersionHandler class
 # ---------------------------------------------------------------------------
 
+
 class VersionHandler:
+    """Register and serve Kubernetes version-listing MCP tools."""
 
     def __init__(self, mcp, config: VksConfig, client: VksClient):
         self.mcp = mcp

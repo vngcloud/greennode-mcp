@@ -1,13 +1,12 @@
-import pytest
 import httpx
+import pytest
 import respx
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
-from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
+from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.k8s_client_cache import K8sClientCache
+from unittest.mock import MagicMock, patch
+
 
 VKS_BASE = "https://vks.api.vngcloud.vn"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
@@ -34,10 +33,17 @@ users:
 
 
 def _mock_iam():
-    respx.post(IAM_URL).mock(return_value=httpx.Response(
-        200,
-        json={"accessToken": "t", "refreshToken": "r", "expiresIn": 1800, "refreshExpiresIn": 3600},
-    ))
+    respx.post(IAM_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "accessToken": "t",
+                "refreshToken": "r",
+                "expiresIn": 1800,
+                "refreshExpiresIn": 3600,
+            },
+        )
+    )
 
 
 @respx.mock

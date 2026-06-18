@@ -12,26 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Build stage: install dependencies and the project with uv
+# Build stage: install dependencies and the project with uv (workspace-aware)
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS uv
 
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    UV_FROZEN=true \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    UV_FROZEN=true
 
-# Install dependencies first (better layer caching)
-COPY pyproject.toml uv.lock* ./
+# Resolve deps first (better layer caching): root workspace pyproject + lock + member pyproject
+COPY pyproject.toml uv.lock ./
+COPY src/vks-mcp-server/pyproject.toml src/vks-mcp-server/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-install-project --no-dev --no-editable || true
+    uv sync --frozen --no-dev --no-install-workspace \
+        --package greennode.vks-mcp-server --extra http
 
-# Add project source and install it
+# Add full source and install the project
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-dev --no-editable
+    uv sync --frozen --no-dev --package greennode.vks-mcp-server --extra http
 
 # Runtime stage
 FROM python:3.13-slim-bookworm
@@ -45,10 +45,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends procps \
     && useradd app -g app -d /app
 
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
-COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+COPY ./src/vks-mcp-server/docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 
+EXPOSE 8000
 USER app
 
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["vks-mcp-server"]
+CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
