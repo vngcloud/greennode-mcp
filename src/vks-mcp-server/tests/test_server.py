@@ -272,18 +272,19 @@ def test_auth_debug_middleware_passes_request_through():
     assert r.status_code == 200
 
 
-def test_auth_debug_middleware_logs_summary(caplog):
-    import logging
-
+def test_auth_debug_middleware_logs_summary(capsys):
     app = AuthDebugMiddleware(_inner_app)
     client = TestClient(app, raise_server_exceptions=False)
     token = "abcdef1234567890abcdef"
-    with caplog.at_level(logging.INFO, logger="greennode.vks_mcp_server.auth_debug"):
-        client.get("/", headers={"Authorization": f"Bearer {token}"})
-    logged = "\n".join(rec.getMessage() for rec in caplog.records)
-    assert "AUTH-DEBUG" in logged
-    assert "abcdef" in logged  # prefix present
-    assert token not in logged  # full token never logged
+    client.get("/", headers={"Authorization": f"Bearer {token}"})
+    out = capsys.readouterr().out
+    assert "AUTH-DEBUG" in out
+    assert "abcdef" in out  # prefix present
+    assert token not in out  # full token never logged
+    # The summary must be emitted as ONE line so it stays greppable in collected
+    # runtime logs (the rich/uvicorn log handler would otherwise wrap the JSON).
+    debug_lines = [ln for ln in out.splitlines() if "AUTH-DEBUG" in ln]
+    assert len(debug_lines) == 1
 
 
 def test_whoami_not_registered_by_default():
