@@ -17,6 +17,10 @@ _TOKEN_PREFIX_LEN = 6
 # claims in an unverified token) is dropped.
 _CLAIM_ALLOWLIST = ("iss", "aud", "sub", "azp", "client_id", "scope", "exp", "iat")
 
+# Header names/prefixes that may carry upstream identity propagation.
+_FORWARD_PREFIXES = ("x-greennode-", "x-grn-", "x-forwarded-")
+_FORWARD_NAMES = ("x-user-id", "x-tenant-id", "forwarded")
+
 
 def _redact_token(token: str) -> dict:
     """Return non-reversible token metadata only (never the full token)."""
@@ -25,6 +29,16 @@ def _redact_token(token: str) -> dict:
         "token_len": len(token),
         "token_prefix": token[:_TOKEN_PREFIX_LEN],
     }
+
+
+def _collect_forwarding_headers(headers: Mapping[str, str]) -> dict:
+    """Collect headers that carry upstream identity propagation."""
+    out: dict = {}
+    for name, value in headers.items():
+        lname = name.lower()
+        if lname.startswith(_FORWARD_PREFIXES) or lname in _FORWARD_NAMES:
+            out[lname] = value
+    return out
 
 
 def _decode_jwt_unverified(token: str) -> dict:
@@ -50,7 +64,7 @@ def summarize_request(method: str, path: str, headers: Mapping[str, str]) -> dic
     summary["has_authorization"] = bool(auth)
     if not auth:
         summary["auth_scheme"] = None
-        summary["forwarding_headers"] = {}
+        summary["forwarding_headers"] = _collect_forwarding_headers(headers)
         return summary
     parts = auth.split(" ", 1)
     summary["auth_scheme"] = parts[0]

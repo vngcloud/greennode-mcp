@@ -34,8 +34,9 @@ def _hs256(**claims) -> str:
 
 
 def test_jwt_header_and_allowlisted_claims():
-    token = _hs256(iss="https://iam.vng", aud="vks-mcp", sub="user-7",
-                   scope="mcp:use", exp=9999999999, iat=1)
+    token = _hs256(
+        iss="https://iam.vng", aud="vks-mcp", sub="user-7", scope="mcp:use", exp=9999999999, iat=1
+    )
     s = summarize_request("POST", "/mcp", {"Authorization": f"Bearer {token}"})
     assert s["jwt_header"]["alg"] == "HS256"
     assert s["jwt_claims"]["iss"] == "https://iam.vng"
@@ -70,3 +71,22 @@ def test_non_bearer_scheme_is_not_jwt_decoded():
     assert s["auth_scheme"] == "Basic"
     assert "jwt_header" not in s
     assert "jwt_claims" not in s
+
+
+def test_forwarding_headers_captured_case_insensitively():
+    headers = {
+        "X-GreenNode-User": "alice",
+        "X-GRN-Tenant": "team-9",
+        "X-Forwarded-For": "10.0.0.1",
+        "X-User-Id": "u-42",
+        "Forwarded": "for=10.0.0.1",
+        "Accept": "application/json",
+    }
+    s = summarize_request("GET", "/mcp", headers)
+    fwd = s["forwarding_headers"]
+    assert fwd["x-greennode-user"] == "alice"
+    assert fwd["x-grn-tenant"] == "team-9"
+    assert fwd["x-forwarded-for"] == "10.0.0.1"
+    assert fwd["x-user-id"] == "u-42"
+    assert fwd["forwarded"] == "for=10.0.0.1"
+    assert "accept" not in fwd
