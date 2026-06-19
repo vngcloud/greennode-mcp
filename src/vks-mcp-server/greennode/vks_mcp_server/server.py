@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hmac
+import json
+import logging
 import os
 import sys
 from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.auth_debug import summarize_request
 from greennode.vks_mcp_server.auth_handler import AuthHandler
 from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig, JwtTokenVerifier
 from greennode.vks_mcp_server.client import VksClient
@@ -24,6 +27,8 @@ from starlette.responses import JSONResponse, Response
 
 
 CONFIG_PATH = Path.home() / ".greenode"
+
+logger = logging.getLogger("greennode.vks_mcp_server.auth_debug")
 
 SERVER_INSTRUCTIONS = """
 # GreenNode MCP Server
@@ -89,6 +94,24 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class AuthDebugMiddleware(BaseHTTPMiddleware):
+    """DIAGNOSTIC: log a redacted summary of every inbound request, then pass it through unchanged.
+
+    Never blocks a request; never logs the full bearer token.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """Log the request's redacted auth summary, then forward it untouched."""
+        summary = summarize_request(request.method, request.url.path, request.headers)
+        logger.info("AUTH-DEBUG %s", json.dumps(summary, default=str))
+        return await call_next(request)
+
+
+def _env_truthy(val: str | None) -> bool:
+    """True for common truthy env-var spellings (1/true/yes/on)."""
+    return (val or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     """Resolve inbound-auth config from CLI args + env. Returns (mode, jwt_config, api_key)."""
     mode = args.auth_mode or os.environ.get("GRN_MCP_AUTH_MODE") or "none"
@@ -127,7 +150,7 @@ def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     return mode, jwt_config, api_key
 
 
-def create_server(jwt_config: JwtAuthConfig | None = None) -> FastMCP:
+def create_server(jwt_config: JwtAuthConfig | None = None, auth_debug: bool = False) -> FastMCP:
     """Create and return a FastMCP server instance.
 
     When jwt_config is provided, the server runs as an OAuth 2.1 Resource Server
@@ -153,6 +176,17 @@ def create_server(jwt_config: JwtAuthConfig | None = None) -> FastMCP:
     async def health(request: Request) -> Response:
         """Liveness/readiness probe endpoint (no authentication required)."""
         return JSONResponse({"status": "ok"})
+
+    if auth_debug:
+        # Intentionally unauthenticated and registered ahead of auth middleware:
+        # it must observe the raw inbound request even under --auth-mode jwt/api-key.
+
+        @server.custom_route("/whoami", methods=["GET"])
+        async def whoami(request: Request) -> Response:
+            """DIAGNOSTIC: echo the request's redacted auth summary (no auth, no verify)."""
+            return JSONResponse(
+                summarize_request(request.method, request.url.path, request.headers)
+            )
 
     return server
 
@@ -220,6 +254,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="This server's public URL for PRM 'resource' (env: GRN_MCP_RESOURCE_URL)",
     )
+    parser.add_argument(
+        "--auth-debug",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="DIAGNOSTIC: log redacted inbound auth summary and expose /whoami "
+        "(HTTP only, off by default; env: GRN_MCP_AUTH_DEBUG). Do NOT use in production.",
+    )
     return parser
 
 
@@ -229,12 +270,13 @@ def main() -> None:
 
     args = _build_parser().parse_args()
     auth_mode, jwt_config, api_key = _resolve_auth(args)
+    auth_debug = args.auth_debug or _env_truthy(os.environ.get("GRN_MCP_AUTH_DEBUG"))
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
     client = VksClient(config, token_manager)
 
-    mcp = create_server(jwt_config)
+    mcp = create_server(jwt_config, auth_debug=auth_debug)
 
     AuthHandler(mcp, config, token_manager)
     ClusterHandler(mcp, config, client, allow_write=args.allow_write)
@@ -249,6 +291,11 @@ def main() -> None:
     )
 
     if args.transport == "stdio":
+        if auth_debug:
+            print(
+                "Note: --auth-debug has no effect with stdio transport (HTTP only); ignoring.",
+                file=sys.stderr,
+            )
         mcp.run()
     else:
         # streamable-http mode
@@ -275,6 +322,14 @@ def main() -> None:
         starlette_app = mcp.streamable_http_app()
         if auth_mode == "api-key" and api_key:
             starlette_app.add_middleware(BearerTokenMiddleware, api_key=api_key)
+
+        if auth_debug:
+            print(
+                "Warning: --auth-debug is ON. Redacted request auth metadata is logged "
+                "and /whoami is exposed. Diagnostic only -- do NOT enable in production.",
+                file=sys.stderr,
+            )
+            starlette_app.add_middleware(AuthDebugMiddleware)
 
         uv_config = uvicorn.Config(
             starlette_app,

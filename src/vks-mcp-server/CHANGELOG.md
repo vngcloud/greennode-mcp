@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cluster_auto_healing_config` tool: configure cluster auto-healing (PATCH /v1/clusters/{id}/auto-healing-config).
 - HTTP transport: unauthenticated `/health` endpoint for liveness/readiness probes (exempt from the API-key guard); the container now serves streamable-http on port **8080**.
 - Inbound auth modes for the HTTP transport via `--auth-mode none|api-key|jwt`. `jwt` makes the server an OAuth 2.1 Resource Server: verifies Bearer JWTs against a JWKS (`--jwt-issuer/--jwt-jwks-uri/--jwt-audience/--resource-url`) and emits 401 + WWW-Authenticate + Protected Resource Metadata. `/health` stays unauthenticated.
+- `--auth-debug` diagnostic (env `GRN_MCP_AUTH_DEBUG`): logs a redacted inbound
+  request auth summary and exposes `GET /whoami`. Opt-in, never verifies, never
+  logs full tokens; HTTP transport only. For measuring upstream/Gateway auth.
 
 ### Fixed
 

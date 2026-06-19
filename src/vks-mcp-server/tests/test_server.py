@@ -1,4 +1,4 @@
-"""Tests for server CLI arg parsing and BearerTokenMiddleware."""
+"""Tests for server CLI arg parsing, auth middleware, and the --auth-debug diagnostic."""
 
 from __future__ import annotations
 
@@ -232,3 +232,95 @@ def test_no_auth_mode_mcp_not_401():
     app = create_server().streamable_http_app()
     client = TestClient(app, raise_server_exceptions=False)
     assert client.get("/mcp").status_code != 401
+
+
+def test_auth_debug_defaults_to_false():
+    args = _parse_args([])
+    assert args.auth_debug is False
+
+
+def test_auth_debug_flag_enables():
+    args = _parse_args(["--auth-debug"])
+    assert args.auth_debug is True
+
+
+def test_no_auth_debug_flag_disables():
+    args = _parse_args(["--no-auth-debug"])
+    assert args.auth_debug is False
+
+
+def test_env_truthy_values():
+    from greennode.vks_mcp_server.server import _env_truthy
+
+    assert _env_truthy("1") is True
+    assert _env_truthy("true") is True
+    assert _env_truthy("YES") is True
+    assert _env_truthy("on") is True
+    assert _env_truthy("0") is False
+    assert _env_truthy("") is False
+    assert _env_truthy(None) is False
+
+
+from greennode.vks_mcp_server.server import AuthDebugMiddleware  # noqa: E402
+
+
+def test_auth_debug_middleware_passes_request_through():
+    app = AuthDebugMiddleware(_inner_app)
+    client = TestClient(app, raise_server_exceptions=False)
+    # No Authorization header: must not block, must not crash.
+    r = client.get("/")
+    assert r.status_code == 200
+
+
+def test_auth_debug_middleware_logs_summary(caplog):
+    import logging
+
+    app = AuthDebugMiddleware(_inner_app)
+    client = TestClient(app, raise_server_exceptions=False)
+    token = "abcdef1234567890abcdef"
+    with caplog.at_level(logging.INFO, logger="greennode.vks_mcp_server.auth_debug"):
+        client.get("/", headers={"Authorization": f"Bearer {token}"})
+    logged = "\n".join(rec.getMessage() for rec in caplog.records)
+    assert "AUTH-DEBUG" in logged
+    assert "abcdef" in logged  # prefix present
+    assert token not in logged  # full token never logged
+
+
+def test_whoami_not_registered_by_default():
+    app = create_server().streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" not in paths
+
+
+def test_whoami_registered_when_auth_debug():
+    app = create_server(auth_debug=True).streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" in paths
+
+
+def test_whoami_echoes_redacted_summary():
+    import jwt
+
+    app = create_server(auth_debug=True).streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    token = jwt.encode({"iss": "i", "aud": "a", "sub": "u-1"}, "x", algorithm="HS256")
+    r = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["jwt_claims"]["sub"] == "u-1"
+    assert body["token_prefix"] == token[:6]
+    assert token not in r.text  # full token never echoed
+
+
+def test_whoami_available_under_jwt_mode():
+    from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
+
+    cfg = JwtAuthConfig(
+        issuer="https://iam.example.com",
+        jwks_uri="https://iam.example.com/jwks",
+        audience="vks-mcp",
+        resource_url="https://mcp.example.com/mcp",
+    )
+    app = create_server(jwt_config=cfg, auth_debug=True).streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" in paths
