@@ -149,7 +149,9 @@ def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     return mode, jwt_config, api_key
 
 
-def create_server(jwt_config: JwtAuthConfig | None = None) -> FastMCP:
+def create_server(
+    jwt_config: JwtAuthConfig | None = None, auth_debug: bool = False
+) -> FastMCP:
     """Create and return a FastMCP server instance.
 
     When jwt_config is provided, the server runs as an OAuth 2.1 Resource Server
@@ -175,6 +177,15 @@ def create_server(jwt_config: JwtAuthConfig | None = None) -> FastMCP:
     async def health(request: Request) -> Response:
         """Liveness/readiness probe endpoint (no authentication required)."""
         return JSONResponse({"status": "ok"})
+
+    if auth_debug:
+
+        @server.custom_route("/whoami", methods=["GET"])
+        async def whoami(request: Request) -> Response:
+            """DIAGNOSTIC: echo the request's redacted auth summary (no auth, no verify)."""
+            return JSONResponse(
+                summarize_request(request.method, request.url.path, request.headers)
+            )
 
     return server
 

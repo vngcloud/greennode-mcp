@@ -284,3 +284,29 @@ def test_auth_debug_middleware_logs_summary(caplog):
     assert "AUTH-DEBUG" in logged
     assert "abcdef"  # prefix present
     assert token not in logged  # full token never logged
+
+
+def test_whoami_not_registered_by_default():
+    app = create_server().streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" not in paths
+
+
+def test_whoami_registered_when_auth_debug():
+    app = create_server(auth_debug=True).streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" in paths
+
+
+def test_whoami_echoes_redacted_summary():
+    import jwt
+
+    app = create_server(auth_debug=True).streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    token = jwt.encode({"iss": "i", "aud": "a", "sub": "u-1"}, "x", algorithm="HS256")
+    r = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["jwt_claims"]["sub"] == "u-1"
+    assert body["token_prefix"] == token[:6]
+    assert token not in r.text  # full token never echoed
