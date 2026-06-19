@@ -140,3 +140,58 @@ def test_bearer_middleware_exempts_health():
     assert client.get("/health").status_code == 200
     assert client.get("/mcp").status_code == 401
     assert client.get("/mcp", headers={"Authorization": "Bearer secret123"}).status_code == 200
+
+
+from greennode.vks_mcp_server.server import _resolve_auth  # noqa: E402
+
+
+def _args(**kw):
+    base = {
+        "auth_mode": None,
+        "api_key": None,
+        "jwt_issuer": None,
+        "jwt_jwks_uri": None,
+        "jwt_audience": None,
+        "jwt_required_scopes": None,
+        "resource_url": None,
+    }
+    base.update(kw)
+    return argparse.Namespace(**base)
+
+
+def test_resolve_auth_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("GRN_MCP_AUTH_MODE", raising=False)
+    mode, jwt_config, api_key = _resolve_auth(_args())
+    assert mode == "none"
+    assert jwt_config is None
+
+
+def test_resolve_auth_api_key_from_env(monkeypatch):
+    monkeypatch.setenv("GRN_MCP_API_KEY", "secret")
+    mode, jwt_config, api_key = _resolve_auth(_args(auth_mode="api-key"))
+    assert mode == "api-key"
+    assert api_key == "secret"
+    assert jwt_config is None
+
+
+def test_resolve_auth_jwt_builds_config():
+    a = _args(
+        auth_mode="jwt",
+        jwt_issuer="https://iam.example.com",
+        jwt_jwks_uri="https://iam.example.com/jwks",
+        jwt_audience="vks-mcp",
+        resource_url="https://mcp.example.com/mcp",
+        jwt_required_scopes="mcp:use, mcp:tools",
+    )
+    mode, jwt_config, _ = _resolve_auth(a)
+    assert mode == "jwt"
+    assert jwt_config is not None
+    assert jwt_config.issuer == "https://iam.example.com"
+    assert jwt_config.audience == "vks-mcp"
+    assert jwt_config.required_scopes == ["mcp:use", "mcp:tools"]
+
+
+def test_resolve_auth_jwt_missing_required_exits():
+    a = _args(auth_mode="jwt", jwt_issuer="https://iam.example.com")  # missing jwks/aud/resource
+    with pytest.raises(SystemExit):
+        _resolve_auth(a)

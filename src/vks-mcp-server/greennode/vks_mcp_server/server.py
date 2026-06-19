@@ -9,6 +9,7 @@ import os
 import sys
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.auth_handler import AuthHandler
+from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import ClusterHandler
 from greennode.vks_mcp_server.config import load_config
@@ -88,6 +89,42 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
+    """Resolve inbound-auth config from CLI args + env. Returns (mode, jwt_config, api_key)."""
+    mode = args.auth_mode or os.environ.get("GRN_MCP_AUTH_MODE") or "none"
+    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")
+    jwt_config: JwtAuthConfig | None = None
+    if mode == "jwt":
+        issuer = args.jwt_issuer or os.environ.get("GRN_MCP_JWT_ISSUER")
+        jwks_uri = args.jwt_jwks_uri or os.environ.get("GRN_MCP_JWT_JWKS_URI")
+        audience = args.jwt_audience or os.environ.get("GRN_MCP_JWT_AUDIENCE")
+        resource_url = args.resource_url or os.environ.get("GRN_MCP_RESOURCE_URL")
+        missing = [
+            name
+            for name, val in [
+                ("--jwt-issuer", issuer),
+                ("--jwt-jwks-uri", jwks_uri),
+                ("--jwt-audience", audience),
+                ("--resource-url", resource_url),
+            ]
+            if not val
+        ]
+        if missing:
+            raise SystemExit(f"--auth-mode jwt requires: {', '.join(missing)}")
+        scopes_raw = args.jwt_required_scopes or os.environ.get("GRN_MCP_JWT_REQUIRED_SCOPES")
+        required_scopes = (
+            [s.strip() for s in scopes_raw.split(",") if s.strip()] if scopes_raw else None
+        )
+        jwt_config = JwtAuthConfig(
+            issuer=issuer,
+            jwks_uri=jwks_uri,
+            audience=audience,
+            resource_url=resource_url,
+            required_scopes=required_scopes,
+        )
+    return mode, jwt_config, api_key
+
+
 def create_server() -> FastMCP:
     """Create and return a FastMCP server instance."""
     server = FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
@@ -138,6 +175,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "--api-key",
         default=None,
         help="Bearer token to protect the HTTP endpoint (env: GRN_MCP_API_KEY)",
+    )
+    parser.add_argument(
+        "--auth-mode",
+        choices=["none", "api-key", "jwt"],
+        default=None,
+        help="Inbound auth for HTTP transport: none (default), api-key, or jwt "
+        "(env: GRN_MCP_AUTH_MODE)",
+    )
+    parser.add_argument("--jwt-issuer", default=None, help="JWT issuer (env: GRN_MCP_JWT_ISSUER)")
+    parser.add_argument(
+        "--jwt-jwks-uri", default=None, help="JWKS URI (env: GRN_MCP_JWT_JWKS_URI)"
+    )
+    parser.add_argument(
+        "--jwt-audience", default=None, help="Expected JWT audience (env: GRN_MCP_JWT_AUDIENCE)"
+    )
+    parser.add_argument(
+        "--jwt-required-scopes",
+        default=None,
+        help="Comma-separated required scopes (env: GRN_MCP_JWT_REQUIRED_SCOPES)",
+    )
+    parser.add_argument(
+        "--resource-url",
+        default=None,
+        help="This server's public URL for PRM 'resource' (env: GRN_MCP_RESOURCE_URL)",
     )
     return parser
 
