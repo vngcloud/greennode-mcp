@@ -197,6 +197,12 @@ def test_resolve_auth_jwt_missing_required_exits():
         _resolve_auth(a)
 
 
+def test_resolve_auth_api_key_missing_key_exits(monkeypatch):
+    monkeypatch.delenv("GRN_MCP_API_KEY", raising=False)
+    with pytest.raises(SystemExit):
+        _resolve_auth(_args(auth_mode="api-key"))
+
+
 def _jwt_config():
     from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
 

@@ -93,6 +93,8 @@ def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     """Resolve inbound-auth config from CLI args + env. Returns (mode, jwt_config, api_key)."""
     mode = args.auth_mode or os.environ.get("GRN_MCP_AUTH_MODE") or "none"
     api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")
+    if mode == "api-key" and not api_key:
+        raise SystemExit("--auth-mode api-key requires --api-key or GRN_MCP_API_KEY")
     jwt_config: JwtAuthConfig | None = None
     if mode == "jwt":
         issuer = args.jwt_issuer or os.environ.get("GRN_MCP_JWT_ISSUER")
