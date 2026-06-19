@@ -39,6 +39,19 @@ uv run vks-mcp-server
 
 See each project's own README for configuration and usage.
 
+### Diagnostics: `--auth-debug` (temporary, opt-in)
+
+`--auth-debug` (env `GRN_MCP_AUTH_DEBUG=1`) makes the HTTP transport log a
+**redacted** summary of every inbound request and expose an unauthenticated
+`GET /whoami` that echoes the same summary. It is meant for measuring what an
+upstream (e.g. the MCP Gateway) actually sends — token scheme, JWT header
+(`alg`/`kid`), allow-listed claims (`iss`/`aud`/`sub`/`scope`/...), and any
+`X-GreenNode-*` / `X-Forwarded-*` identity headers.
+
+It **never verifies** signatures and **never logs the full token** (only a
+6-char prefix + length). It is **off by default** and **must not be enabled in
+production**. It is orthogonal to `--auth-mode` and can be combined with any mode.
+
 ## Development
 
 ```bash

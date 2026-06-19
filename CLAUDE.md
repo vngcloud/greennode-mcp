@@ -69,6 +69,7 @@ uv run vks-mcp-server --allow-sensitive-data-access
 (`token_verifier` + `AuthSettings` → 401 + WWW-Authenticate + PRM), verifying Bearer
 JWTs via JWKS (`--jwt-issuer/--jwt-jwks-uri/--jwt-audience/--resource-url`, or `GRN_MCP_JWT_*`/`GRN_MCP_RESOURCE_URL`).
 VKS upstream still uses the global service account (per-user is a future phase). `/health` is always open.
+`--auth-debug` (env `GRN_MCP_AUTH_DEBUG=1`) is an opt-in, redacted, HTTP-only diagnostic: logs a summary of inbound request auth (token scheme, JWT header, allow-listed claims, forwarding headers) and exposes `GET /whoami`. It never verifies signatures and never logs the full token; off by default; not for production.
 
 ## Adding a new tool
 
