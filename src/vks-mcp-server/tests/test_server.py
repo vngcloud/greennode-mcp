@@ -232,3 +232,30 @@ def test_no_auth_mode_mcp_not_401():
     app = create_server().streamable_http_app()
     client = TestClient(app, raise_server_exceptions=False)
     assert client.get("/mcp").status_code != 401
+
+
+def test_auth_debug_defaults_to_false():
+    args = _parse_args([])
+    assert args.auth_debug is False
+
+
+def test_auth_debug_flag_enables():
+    args = _parse_args(["--auth-debug"])
+    assert args.auth_debug is True
+
+
+def test_no_auth_debug_flag_disables():
+    args = _parse_args(["--no-auth-debug"])
+    assert args.auth_debug is False
+
+
+def test_env_truthy_values():
+    from greennode.vks_mcp_server.server import _env_truthy
+
+    assert _env_truthy("1") is True
+    assert _env_truthy("true") is True
+    assert _env_truthy("YES") is True
+    assert _env_truthy("on") is True
+    assert _env_truthy("0") is False
+    assert _env_truthy("") is False
+    assert _env_truthy(None) is False

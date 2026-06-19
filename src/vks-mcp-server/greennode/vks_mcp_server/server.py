@@ -89,6 +89,11 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+def _env_truthy(val: str | None) -> bool:
+    """True for common truthy env-var spellings (1/true/yes/on)."""
+    return (val or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     """Resolve inbound-auth config from CLI args + env. Returns (mode, jwt_config, api_key)."""
     mode = args.auth_mode or os.environ.get("GRN_MCP_AUTH_MODE") or "none"
@@ -219,6 +224,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--resource-url",
         default=None,
         help="This server's public URL for PRM 'resource' (env: GRN_MCP_RESOURCE_URL)",
+    )
+    parser.add_argument(
+        "--auth-debug",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="DIAGNOSTIC: log redacted inbound auth summary and expose /whoami "
+        "(HTTP only, off by default; env: GRN_MCP_AUTH_DEBUG). Do NOT use in production.",
     )
     return parser
 
