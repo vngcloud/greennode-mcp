@@ -9,7 +9,7 @@ import os
 import sys
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.auth_handler import AuthHandler
-from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
+from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig, JwtTokenVerifier
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import ClusterHandler
 from greennode.vks_mcp_server.config import load_config
@@ -125,9 +125,27 @@ def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     return mode, jwt_config, api_key
 
 
-def create_server() -> FastMCP:
-    """Create and return a FastMCP server instance."""
-    server = FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
+def create_server(jwt_config: JwtAuthConfig | None = None) -> FastMCP:
+    """Create and return a FastMCP server instance.
+
+    When jwt_config is provided, the server runs as an OAuth 2.1 Resource Server
+    (verify Bearer JWT + emit 401/WWW-Authenticate + Protected Resource Metadata).
+    """
+    if jwt_config is not None:
+        from mcp.server.auth.settings import AuthSettings
+
+        server = FastMCP(
+            "vks-mcp-server",
+            instructions=SERVER_INSTRUCTIONS,
+            token_verifier=JwtTokenVerifier(jwt_config),
+            auth=AuthSettings(
+                issuer_url=jwt_config.issuer,
+                resource_server_url=jwt_config.resource_url,
+                required_scopes=jwt_config.required_scopes or None,
+            ),
+        )
+    else:
+        server = FastMCP("vks-mcp-server", instructions=SERVER_INSTRUCTIONS)
 
     @server.custom_route("/health", methods=["GET"])
     async def health(request: Request) -> Response:
@@ -208,13 +226,13 @@ def main() -> None:
     global mcp
 
     args = _build_parser().parse_args()
-    api_key = args.api_key or os.environ.get("GRN_MCP_API_KEY")
+    auth_mode, jwt_config, api_key = _resolve_auth(args)
 
     config = load_config(CONFIG_PATH)
     token_manager = TokenManager(config)
     client = VksClient(config, token_manager)
 
-    mcp = create_server()
+    mcp = create_server(jwt_config)
 
     AuthHandler(mcp, config, token_manager)
     ClusterHandler(mcp, config, client, allow_write=args.allow_write)
@@ -234,10 +252,10 @@ def main() -> None:
         # streamable-http mode
         import uvicorn  # optional dep; only required for streamable-http mode
 
-        if not api_key:
+        if auth_mode == "none":
             print(
-                "Warning: --api-key not set. Server is unauthenticated. "
-                "Only use in a trusted network.",
+                "Warning: --auth-mode is 'none'. The HTTP endpoint is unauthenticated. "
+                "Use api-key or jwt, or run only on a trusted network.",
                 file=sys.stderr,
             )
 
@@ -253,7 +271,7 @@ def main() -> None:
             )
 
         starlette_app = mcp.streamable_http_app()
-        if api_key:
+        if auth_mode == "api-key" and api_key:
             starlette_app.add_middleware(BearerTokenMiddleware, api_key=api_key)
 
         uv_config = uvicorn.Config(

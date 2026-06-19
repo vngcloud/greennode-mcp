@@ -195,3 +195,34 @@ def test_resolve_auth_jwt_missing_required_exits():
     a = _args(auth_mode="jwt", jwt_issuer="https://iam.example.com")  # missing jwks/aud/resource
     with pytest.raises(SystemExit):
         _resolve_auth(a)
+
+
+def _jwt_config():
+    from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
+
+    return JwtAuthConfig(
+        issuer="https://iam.example.com",
+        jwks_uri="https://iam.example.com/jwks",
+        audience="vks-mcp",
+        resource_url="https://mcp.example.com/mcp",
+    )
+
+
+def test_jwt_mode_protects_mcp_endpoint():
+    app = create_server(_jwt_config()).streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/mcp")
+    assert r.status_code == 401
+    assert "WWW-Authenticate" in r.headers
+
+
+def test_jwt_mode_health_still_open():
+    app = create_server(_jwt_config()).streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    assert client.get("/health").status_code == 200
+
+
+def test_no_auth_mode_mcp_not_401():
+    app = create_server().streamable_http_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    assert client.get("/mcp").status_code != 401
