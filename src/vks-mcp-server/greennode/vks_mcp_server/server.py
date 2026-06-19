@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import hmac
 import json
-import logging
 import os
 import sys
 from greennode.vks_mcp_server.auth import TokenManager
@@ -27,8 +26,6 @@ from starlette.responses import JSONResponse, Response
 
 
 CONFIG_PATH = Path.home() / ".greenode"
-
-logger = logging.getLogger("greennode.vks_mcp_server.auth_debug")
 
 SERVER_INSTRUCTIONS = """
 # GreenNode MCP Server
@@ -103,7 +100,10 @@ class AuthDebugMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         """Log the request's redacted auth summary, then forward it untouched."""
         summary = summarize_request(request.method, request.url.path, request.headers)
-        logger.info("AUTH-DEBUG %s", json.dumps(summary, default=str))
+        # Emit a single plain line to stdout rather than via the logging framework:
+        # the uvicorn/rich log handler wraps long messages across several lines,
+        # which splits the JSON and makes it ungreppable in collected runtime logs.
+        print(f"AUTH-DEBUG {json.dumps(summary, default=str)}", flush=True)
         return await call_next(request)
 
 
