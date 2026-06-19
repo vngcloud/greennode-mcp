@@ -63,6 +63,13 @@ uv run vks-mcp-server --allow-write
 uv run vks-mcp-server --allow-sensitive-data-access
 ```
 
+## Inbound auth (HTTP transport)
+
+`--auth-mode none|api-key|jwt`. `jwt` runs the server as an OAuth 2.1 Resource Server
+(`token_verifier` + `AuthSettings` → 401 + WWW-Authenticate + PRM), verifying Bearer
+JWTs via JWKS (`--jwt-issuer/--jwt-jwks-uri/--jwt-audience/--resource-url`, or `GRN_MCP_JWT_*`/`GRN_MCP_RESOURCE_URL`).
+VKS upstream still uses the global service account (per-user is a future phase). `/health` is always open.
+
 ## Adding a new tool
 
 1. Choose the appropriate handler or create a new one in `src/vks-mcp-server/greennode/vks_mcp_server/`

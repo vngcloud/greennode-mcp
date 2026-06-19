@@ -54,6 +54,22 @@ uv run vks-mcp-server --allow-sensitive-data-access
 The server speaks MCP over stdio, so point your MCP client (Claude Desktop,
 Cursor, …) at the command above.
 
+### Inbound authentication (HTTP transport)
+
+`--auth-mode` selects how clients authenticate to the HTTP endpoint:
+
+- `none` (default) — no auth (use only on a trusted/private network)
+- `api-key` — static Bearer token (`--api-key` / `GRN_MCP_API_KEY`)
+- `jwt` — OAuth 2.1 Resource Server: verifies Bearer JWTs against a JWKS and
+  advertises Protected Resource Metadata. Requires `--jwt-issuer`,
+  `--jwt-jwks-uri`, `--jwt-audience`, `--resource-url` (or the matching
+  `GRN_MCP_JWT_*` / `GRN_MCP_RESOURCE_URL` env vars); optional
+  `--jwt-required-scopes`.
+
+Behind the GreenNode MCP Gateway: use `api-key` when the Gateway's outbound auth
+is API Key, or `jwt` when it is OAuth 2.0. `/health` is always unauthenticated.
+(Per-user VKS access is a future phase.)
+
 ## Tools
 
 - **Cluster** — list/get/create/update/delete, kubeconfig, events, auto-upgrade,
