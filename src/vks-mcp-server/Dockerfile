@@ -28,10 +28,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-workspace \
         --package greennode.vks-mcp-server --extra http
 
-# Add full source and install the project
+# Add full source and install the project. --no-editable copies the package into
+# site-packages (instead of an editable .pth pointing at /app/src), so the runtime
+# stage — which copies only /app/.venv — is self-contained.
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --package greennode.vks-mcp-server --extra http
+    uv sync --frozen --no-dev --no-editable --package greennode.vks-mcp-server --extra http
 
 # Runtime stage
 FROM python:3.13-slim-bookworm
