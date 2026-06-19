@@ -90,3 +90,15 @@ def test_forwarding_headers_captured_case_insensitively():
     assert fwd["x-user-id"] == "u-42"
     assert fwd["forwarded"] == "for=10.0.0.1"
     assert "accept" not in fwd
+
+
+def test_forwarding_headers_captured_when_token_present():
+    headers = {
+        "Authorization": "Bearer abcdef.ghijkl.mnopqr",
+        "X-GreenNode-User": "bob",
+        "X-Forwarded-For": "10.0.0.2",
+    }
+    s = summarize_request("POST", "/mcp", headers)
+    assert s["token_present"] is True
+    assert s["forwarding_headers"]["x-greennode-user"] == "bob"
+    assert s["forwarding_headers"]["x-forwarded-for"] == "10.0.0.2"

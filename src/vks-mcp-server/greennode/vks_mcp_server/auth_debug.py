@@ -73,5 +73,5 @@ def summarize_request(method: str, path: str, headers: Mapping[str, str]) -> dic
         summary.update(_redact_token(token))
         if parts[0].lower() == "bearer" and token.count(".") == 2:
             summary.update(_decode_jwt_unverified(token))
-    summary["forwarding_headers"] = {}
+    summary["forwarding_headers"] = _collect_forwarding_headers(headers)
     return summary
