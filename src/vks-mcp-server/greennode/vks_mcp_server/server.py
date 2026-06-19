@@ -178,6 +178,8 @@ def create_server(jwt_config: JwtAuthConfig | None = None, auth_debug: bool = Fa
         return JSONResponse({"status": "ok"})
 
     if auth_debug:
+        # Intentionally unauthenticated and registered ahead of auth middleware:
+        # it must observe the raw inbound request even under --auth-mode jwt/api-key.
 
         @server.custom_route("/whoami", methods=["GET"])
         async def whoami(request: Request) -> Response:

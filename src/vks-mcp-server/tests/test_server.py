@@ -1,4 +1,4 @@
-"""Tests for server CLI arg parsing and BearerTokenMiddleware."""
+"""Tests for server CLI arg parsing, auth middleware, and the --auth-debug diagnostic."""
 
 from __future__ import annotations
 
@@ -282,7 +282,7 @@ def test_auth_debug_middleware_logs_summary(caplog):
         client.get("/", headers={"Authorization": f"Bearer {token}"})
     logged = "\n".join(rec.getMessage() for rec in caplog.records)
     assert "AUTH-DEBUG" in logged
-    assert "abcdef"  # prefix present
+    assert "abcdef" in logged  # prefix present
     assert token not in logged  # full token never logged
 
 
@@ -310,3 +310,17 @@ def test_whoami_echoes_redacted_summary():
     assert body["jwt_claims"]["sub"] == "u-1"
     assert body["token_prefix"] == token[:6]
     assert token not in r.text  # full token never echoed
+
+
+def test_whoami_available_under_jwt_mode():
+    from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig
+
+    cfg = JwtAuthConfig(
+        issuer="https://iam.example.com",
+        jwks_uri="https://iam.example.com/jwks",
+        audience="vks-mcp",
+        resource_url="https://mcp.example.com/mcp",
+    )
+    app = create_server(jwt_config=cfg, auth_debug=True).streamable_http_app()
+    paths = [getattr(r, "path", None) for r in app.router.routes]
+    assert "/whoami" in paths
