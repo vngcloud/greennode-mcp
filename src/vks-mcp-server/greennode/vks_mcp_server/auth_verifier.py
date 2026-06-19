@@ -40,6 +40,7 @@ class JwtTokenVerifier(TokenVerifier):
                 algorithms=["RS256", "ES256"],
                 audience=self._config.audience,
                 issuer=self._config.issuer,
+                options={"require": ["exp", "iss", "aud"]},
             )
         except Exception:
             return None

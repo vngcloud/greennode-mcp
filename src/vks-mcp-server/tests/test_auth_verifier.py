@@ -81,3 +81,32 @@ async def test_expired_token_rejected(verifier, rsa_key):
 async def test_tampered_signature_rejected(verifier, rsa_key):
     token = _make_token(rsa_key) + "tamper"
     assert await verifier.verify_token(token) is None
+
+
+@pytest.mark.asyncio
+async def test_alg_none_rejected(verifier):
+    # Unsigned token (alg=none) must be rejected.
+    token = jwt.encode(
+        {"iss": ISSUER, "aud": AUDIENCE, "sub": "u", "exp": int(time.time()) + 60},
+        key=None,
+        algorithm="none",
+    )
+    assert await verifier.verify_token(token) is None
+
+
+@pytest.mark.asyncio
+async def test_hs256_algorithm_confusion_rejected(verifier):
+    # Token signed with HS256 must be rejected (only RS256/ES256 allowed).
+    token = jwt.encode(
+        {"iss": ISSUER, "aud": AUDIENCE, "sub": "u", "exp": int(time.time()) + 60},
+        "any-shared-secret",
+        algorithm="HS256",
+    )
+    assert await verifier.verify_token(token) is None
+
+
+@pytest.mark.asyncio
+async def test_missing_exp_rejected(verifier, rsa_key):
+    # exp is now required.
+    token = jwt.encode({"iss": ISSUER, "aud": AUDIENCE, "sub": "u"}, rsa_key, algorithm="RS256")
+    assert await verifier.verify_token(token) is None
