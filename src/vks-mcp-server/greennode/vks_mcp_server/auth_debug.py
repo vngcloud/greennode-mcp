@@ -7,10 +7,15 @@ measure what an upstream (e.g. the MCP Gateway) actually sends downstream.
 
 from __future__ import annotations
 
+import jwt
 from typing import Mapping
 
 
 _TOKEN_PREFIX_LEN = 6
+
+# Allow-list of claims we surface. Anything else (incl. unknown sensitive
+# claims in an unverified token) is dropped.
+_CLAIM_ALLOWLIST = ("iss", "aud", "sub", "azp", "client_id", "scope", "exp", "iat")
 
 
 def _redact_token(token: str) -> dict:
@@ -19,6 +24,19 @@ def _redact_token(token: str) -> dict:
         "token_present": True,
         "token_len": len(token),
         "token_prefix": token[:_TOKEN_PREFIX_LEN],
+    }
+
+
+def _decode_jwt_unverified(token: str) -> dict:
+    """Decode a JWT WITHOUT verifying its signature (diagnostic only)."""
+    try:
+        header = jwt.get_unverified_header(token)
+        claims = jwt.decode(token, options={"verify_signature": False})
+    except Exception as exc:  # noqa: BLE001 - a diagnostic must never propagate
+        return {"jwt_decode_error": type(exc).__name__}
+    return {
+        "jwt_header": {k: header.get(k) for k in ("alg", "kid", "typ") if k in header},
+        "jwt_claims": {k: claims[k] for k in _CLAIM_ALLOWLIST if k in claims},
     }
 
 
@@ -39,5 +57,7 @@ def summarize_request(method: str, path: str, headers: Mapping[str, str]) -> dic
     token = parts[1].strip() if len(parts) == 2 else ""
     if token:
         summary.update(_redact_token(token))
+        if parts[0].lower() == "bearer" and token.count(".") == 2:
+            summary.update(_decode_jwt_unverified(token))
     summary["forwarding_headers"] = {}
     return summary
