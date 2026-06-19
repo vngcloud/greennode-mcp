@@ -60,9 +60,8 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["greennode"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"greennode/vks_mcp_server/templates" = "greennode/vks_mcp_server/templates"
+# Non-Python files (e.g. templates/) under the package are included automatically;
+# a force-include here would double-add them and break the wheel build.
 
 [tool.ruff]
 line-length = 99
