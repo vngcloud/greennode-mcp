@@ -259,3 +259,28 @@ def test_env_truthy_values():
     assert _env_truthy("0") is False
     assert _env_truthy("") is False
     assert _env_truthy(None) is False
+
+
+from greennode.vks_mcp_server.server import AuthDebugMiddleware  # noqa: E402
+
+
+def test_auth_debug_middleware_passes_request_through():
+    app = AuthDebugMiddleware(_inner_app)
+    client = TestClient(app, raise_server_exceptions=False)
+    # No Authorization header: must not block, must not crash.
+    r = client.get("/")
+    assert r.status_code == 200
+
+
+def test_auth_debug_middleware_logs_summary(caplog):
+    import logging
+
+    app = AuthDebugMiddleware(_inner_app)
+    client = TestClient(app, raise_server_exceptions=False)
+    token = "abcdef1234567890abcdef"
+    with caplog.at_level(logging.INFO, logger="greennode.vks_mcp_server.auth_debug"):
+        client.get("/", headers={"Authorization": f"Bearer {token}"})
+    logged = "\n".join(rec.getMessage() for rec in caplog.records)
+    assert "AUTH-DEBUG" in logged
+    assert "abcdef"  # prefix present
+    assert token not in logged  # full token never logged

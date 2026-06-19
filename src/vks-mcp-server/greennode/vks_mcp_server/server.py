@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hmac
+import json
+import logging
 import os
 import sys
 from greennode.vks_mcp_server.auth import TokenManager
+from greennode.vks_mcp_server.auth_debug import summarize_request
 from greennode.vks_mcp_server.auth_handler import AuthHandler
 from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig, JwtTokenVerifier
 from greennode.vks_mcp_server.client import VksClient
@@ -24,6 +27,8 @@ from starlette.responses import JSONResponse, Response
 
 
 CONFIG_PATH = Path.home() / ".greenode"
+
+logger = logging.getLogger("greennode.vks_mcp_server.auth_debug")
 
 SERVER_INSTRUCTIONS = """
 # GreenNode MCP Server
@@ -86,6 +91,18 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        return await call_next(request)
+
+
+class AuthDebugMiddleware(BaseHTTPMiddleware):
+    """DIAGNOSTIC: log a redacted summary of every inbound request, then pass it
+    through unchanged. Never blocks a request; never logs the full bearer token.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """Log the request's redacted auth summary, then forward it untouched."""
+        summary = summarize_request(request.method, request.url.path, request.headers)
+        logger.info("AUTH-DEBUG %s", json.dumps(summary, default=str))
         return await call_next(request)
 
 
