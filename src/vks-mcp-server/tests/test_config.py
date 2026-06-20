@@ -70,3 +70,25 @@ def test_load_config_default_region_when_no_config_file(tmp_path):
     credentials.write_text("[default]\nclient_id = my-id\nclient_secret = my-secret\n")
     cfg = load_config(greenode_dir)
     assert cfg.default_region == "HCM-3"
+
+
+def test_load_config_reads_project_id(sample_config):
+    cfg = load_config(sample_config)
+    assert cfg.project_id == "pro-test-0001"
+
+
+def test_project_id_env_override(sample_config, monkeypatch):
+    monkeypatch.setenv("GRN_PROJECT_ID", "pro-env-9999")
+    cfg = load_config(sample_config)
+    assert cfg.project_id == "pro-env-9999"
+
+
+def test_project_id_absent_is_none(tmp_path):
+    d = tmp_path / ".greenode"
+    d.mkdir()
+    (d / "credentials").write_text(
+        "[default]\nclient_id = a\nclient_secret = b\n"
+    )
+    (d / "config").write_text("[default]\nregion = HCM-3\n")
+    cfg = load_config(d)
+    assert cfg.project_id is None
