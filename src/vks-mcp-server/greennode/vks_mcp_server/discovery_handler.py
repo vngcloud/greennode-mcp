@@ -120,7 +120,9 @@ async def _flavor_list(
             f"{f.get('cpu', '')} | {f.get('memory', '')} | {f.get('gpu', '')} | {group} |"
         )
     empty = (
-        f"No flavor found for need '{need}'." if need else "No flavor found in this project/region."
+        f"No flavor found for need '{need}'."
+        if need
+        else "No flavor found in this project/region."
     )
     return _table(
         "Flavors:" + (f" (need: {need})" if need else ""),
@@ -139,8 +141,7 @@ async def _sshkey_list(config: VksConfig, client: VksClient, region: str | None 
     )
     items = _as_list(data, "listData")
     rows = [
-        f"| {i} | {k.get('name', '')} | {k.get('id', '')} |"
-        for i, k in enumerate(items, start=1)
+        f"| {i} | {k.get('name', '')} | {k.get('id', '')} |" for i, k in enumerate(items, start=1)
     ]
     return _table(
         "SSH keys:",

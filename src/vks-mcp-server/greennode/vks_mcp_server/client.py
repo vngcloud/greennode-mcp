@@ -52,6 +52,8 @@ class VksClient:
             json: Optional JSON body.
             raw_response: If ``True``, return the raw response text
                 instead of parsed JSON.
+            service: Target API — ``"vks"`` (default) uses the VKS base URL,
+                ``"vserver"`` uses the vServer base URL.
             _retried_auth: Internal flag to prevent infinite 401 retry loops.
         """
         endpoints = self._config.get_endpoints(region)

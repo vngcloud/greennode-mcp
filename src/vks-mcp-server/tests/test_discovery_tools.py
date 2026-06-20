@@ -17,6 +17,7 @@ from greennode.vks_mcp_server.discovery_handler import (
     _vpc_list,
 )
 
+
 VSERVER_BASE = "https://hcm-3.api.vngcloud.vn/vserver/vserver-gateway"
 IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
 PID = "pro-test-0001"
@@ -47,7 +48,12 @@ async def test_vpc_list(config, client):
             200,
             json={
                 "listData": [
-                    {"id": "net-1", "displayName": "vpc-prod", "cidr": "10.0.0.0/16", "status": "ACTIVE"}
+                    {
+                        "id": "net-1",
+                        "displayName": "vpc-prod",
+                        "cidr": "10.0.0.0/16",
+                        "status": "ACTIVE",
+                    }
                 ],
                 "totalItem": 1,
             },
@@ -95,7 +101,6 @@ async def test_subnet_list_rejects_bad_vpc_id(config, client):
 
 
 def test_suggest_group_classifies():
-    from greennode.vks_mcp_server.discovery_handler import _suggest_group
     assert _suggest_group({"cpu": 2, "memory": 4, "gpu": 1}) == "AI/GPU"
     assert _suggest_group({"cpu": 2, "memory": 4, "gpu": 0}) == "Dev/test"
     assert _suggest_group({"cpu": 8, "memory": 16, "gpu": 0}) == "Compute"
@@ -111,8 +116,22 @@ async def test_flavor_list(config, client):
         return_value=httpx.Response(
             200,
             json=[
-                {"flavorId": "flv-1", "name": "2c_4g", "cpu": 2, "memory": 4, "gpu": 0, "group": "standard"},
-                {"flavorId": "flv-2", "name": "8c_16g", "cpu": 8, "memory": 16, "gpu": 0, "group": "standard"},
+                {
+                    "flavorId": "flv-1",
+                    "name": "2c_4g",
+                    "cpu": 2,
+                    "memory": 4,
+                    "gpu": 0,
+                    "group": "standard",
+                },
+                {
+                    "flavorId": "flv-2",
+                    "name": "8c_16g",
+                    "cpu": 8,
+                    "memory": 16,
+                    "gpu": 0,
+                    "group": "standard",
+                },
             ],
         )
     )
@@ -176,7 +195,12 @@ async def test_secgroup_list(config, client):
             200,
             json={
                 "listData": [
-                    {"id": "secg-1", "name": "default", "description": "default sg", "status": "ACTIVE"}
+                    {
+                        "id": "secg-1",
+                        "name": "default",
+                        "description": "default sg",
+                        "status": "ACTIVE",
+                    }
                 ]
             },
         )

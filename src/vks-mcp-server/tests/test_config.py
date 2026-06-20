@@ -86,9 +86,7 @@ def test_project_id_env_override(sample_config, monkeypatch):
 def test_project_id_absent_is_none(tmp_path):
     d = tmp_path / ".greenode"
     d.mkdir()
-    (d / "credentials").write_text(
-        "[default]\nclient_id = a\nclient_secret = b\n"
-    )
+    (d / "credentials").write_text("[default]\nclient_id = a\nclient_secret = b\n")
     (d / "config").write_text("[default]\nregion = HCM-3\n")
     cfg = load_config(d)
     assert cfg.project_id is None
