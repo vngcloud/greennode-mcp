@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import httpx
 import logging
+import os
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.config import VksConfig
 from typing import Any
@@ -34,6 +35,7 @@ class VksClient:
         params: dict[str, Any] | None = None,
         json: Any = None,
         raw_response: bool = False,
+        service: str = "vks",
         _retried_auth: bool = False,
     ) -> Any:
         """Send an HTTP request to the VKS API.
@@ -53,11 +55,16 @@ class VksClient:
             _retried_auth: Internal flag to prevent infinite 401 retry loops.
         """
         endpoints = self._config.get_endpoints(region)
-        url = f"{endpoints.vks}{path}"
+        base = endpoints.vserver if service == "vserver" else endpoints.vks
+        url = f"{base}{path}"
 
         for attempt in range(MAX_RETRIES + 1):
             token = await self._token_manager.get_token()
             headers = {"Authorization": f"Bearer {token}"}
+            if service == "vserver":
+                portal = os.environ.get("GRN_PORTAL_USER_ID")
+                if portal:
+                    headers["portal-user-id"] = portal
 
             try:
                 async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
@@ -96,6 +103,7 @@ class VksClient:
                     params=params,
                     json=json,
                     raw_response=raw_response,
+                    service=service,
                     _retried_auth=True,
                 )
 
@@ -209,3 +217,12 @@ class VksClient:
     ) -> str:
         """Send a GET request and return the raw response text."""
         return await self._request("GET", path, region=region, params=params, raw_response=True)
+
+    async def vserver_get(
+        self,
+        path: str,
+        region: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        """Send a GET request to the vServer API (not the VKS API)."""
+        return await self._request("GET", path, region=region, params=params, service="vserver")

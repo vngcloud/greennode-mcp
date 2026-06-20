@@ -105,3 +105,60 @@ async def test_client_raises_on_404(client):
     )
     with pytest.raises(RuntimeError, match="not found"):
         await client.get("/v1/clusters/missing")
+
+
+# ---------------------------------------------------------------------------
+# vServer tests
+# ---------------------------------------------------------------------------
+
+import os
+
+VSERVER_BASE = "https://hcm-3.api.vngcloud.vn/vserver/vserver-gateway"
+
+
+def _mock_iam(mock):
+    mock.post(IAM_URL).mock(
+        return_value=httpx.Response(200, json={"accessToken": "tok", "expiresIn": 1800})
+    )
+
+
+@pytest.fixture
+def vs_client(sample_config):
+    cfg = load_config(sample_config)
+    return VksClient(cfg, TokenManager(cfg))
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_vserver_get_hits_vserver_base(vs_client):
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/networks").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    result = await vs_client.vserver_get("/v2/pro-x/networks")
+    assert route.called
+    assert result == {"listData": []}
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_vserver_get_omits_portal_header_when_unset(vs_client, monkeypatch):
+    monkeypatch.delenv("GRN_PORTAL_USER_ID", raising=False)
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/secgroups").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    await vs_client.vserver_get("/v2/pro-x/secgroups")
+    assert "portal-user-id" not in route.calls.last.request.headers
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_vserver_get_sends_portal_header_when_set(vs_client, monkeypatch):
+    monkeypatch.setenv("GRN_PORTAL_USER_ID", "12345")
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/sshKeys").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    await vs_client.vserver_get("/v2/pro-x/sshKeys", params={"page": 1, "size": 10})
+    assert route.calls.last.request.headers["portal-user-id"] == "12345"
