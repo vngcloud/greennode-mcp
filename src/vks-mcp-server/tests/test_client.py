@@ -111,15 +111,7 @@ async def test_client_raises_on_404(client):
 # vServer tests
 # ---------------------------------------------------------------------------
 
-import os
-
 VSERVER_BASE = "https://hcm-3.api.vngcloud.vn/vserver/vserver-gateway"
-
-
-def _mock_iam(mock):
-    mock.post(IAM_URL).mock(
-        return_value=httpx.Response(200, json={"accessToken": "tok", "expiresIn": 1800})
-    )
 
 
 @pytest.fixture
