@@ -12,6 +12,7 @@ from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import ClusterHandler
 from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.discovery_handler import DiscoveryHandler
 from greennode.vks_mcp_server.k8s_handler import K8sHandler
 from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
 from greennode.vks_mcp_server.version_handler import VersionHandler
@@ -169,3 +170,11 @@ async def test_generate_app_manifest_schema(config, client):
     assert props["port"]["minimum"] == 1
     assert props["port"]["maximum"] == 65535
     assert props["replicas"]["minimum"] == 1
+
+
+@pytest.mark.asyncio
+async def test_discovery_tools_registered(config, client):
+    mcp = FastMCP("test")
+    DiscoveryHandler(mcp, config, client)
+    names = {t.name for t in await mcp.list_tools()}
+    assert {"vpc_list", "subnet_list", "flavor_list", "sshkey_list", "secgroup_list"} <= names

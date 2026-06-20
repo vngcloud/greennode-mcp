@@ -15,6 +15,7 @@ from greennode.vks_mcp_server.auth_verifier import JwtAuthConfig, JwtTokenVerifi
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.cluster_handler import ClusterHandler
 from greennode.vks_mcp_server.config import load_config
+from greennode.vks_mcp_server.discovery_handler import DiscoveryHandler
 from greennode.vks_mcp_server.k8s_handler import K8sHandler
 from greennode.vks_mcp_server.nodegroup_handler import NodeGroupHandler
 from greennode.vks_mcp_server.version_handler import VersionHandler
@@ -49,6 +50,7 @@ By default the server runs in **read-only** mode. Use the `--allow-write` flag t
 - nodegroup_list, nodegroup_get: View node groups
 - nodegroup_list_nodes: List nodes in a node group
 - nodegroup_delete_dryrun: Preview information before deleting a node group
+- vpc_list, subnet_list, flavor_list, sshkey_list, secgroup_list: Discover vServer resources (VPC, subnet, flavor, SSH key, security group) to fill cluster/node-group creation
 
 ### Write (requires --allow-write):
 - cluster_create, cluster_update, cluster_delete: Create, update, delete cluster
@@ -281,6 +283,7 @@ def main() -> None:
     AuthHandler(mcp, config, token_manager)
     ClusterHandler(mcp, config, client, allow_write=args.allow_write)
     NodeGroupHandler(mcp, config, client, allow_write=args.allow_write)
+    DiscoveryHandler(mcp, config, client)
     VersionHandler(mcp, config, client)
     K8sHandler(
         mcp,
