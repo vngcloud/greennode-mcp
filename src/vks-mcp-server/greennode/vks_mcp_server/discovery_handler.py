@@ -104,7 +104,7 @@ async def _flavor_list(
     region: str | None = None,
     need: str | None = None,
 ) -> str:
-    """Fetch cluster flavors, return a markdown table grouped by need."""
+    """Fetch cluster flavors as a markdown table, each row tagged with a suggested deployment-need group, optionally filtered to one group via *need*."""
     pid = _require_project_id(config)
     data = await client.vserver_get(f"/v1/{pid}/flavors/customs/clusters", region=region)
     items = _as_list(data, "listData")
@@ -208,7 +208,7 @@ class DiscoveryHandler:
         ),
         region: str | None = Field(None, description="Region override"),
     ) -> str:
-        """List cluster flavors with a suggested deployment-need group. Use the ID as `flavorId`."""
+        """List cluster flavors, each tagged with a suggested deployment-need group (optionally filtered by `need`). Use the ID as `flavorId`."""
         return await _flavor_list(self.config, self.client, region=region, need=need)
 
     async def sshkey_list(
