@@ -134,23 +134,13 @@ async def test_vserver_get_hits_vserver_base(vs_client):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_vserver_get_omits_portal_header_when_unset(vs_client, monkeypatch):
-    monkeypatch.delenv("GRN_PORTAL_USER_ID", raising=False)
-    _mock_iam(respx.mock)
-    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/secgroups").mock(
-        return_value=httpx.Response(200, json={"listData": []})
-    )
-    await vs_client.vserver_get("/v2/pro-x/secgroups")
-    assert "portal-user-id" not in route.calls.last.request.headers
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_vserver_get_sends_portal_header_when_set(vs_client, monkeypatch):
-    monkeypatch.setenv("GRN_PORTAL_USER_ID", "12345")
+async def test_vserver_get_sends_bearer_token_and_params(vs_client):
     _mock_iam(respx.mock)
     route = respx.get(f"{VSERVER_BASE}/v2/pro-x/sshKeys").mock(
         return_value=httpx.Response(200, json={"listData": []})
     )
     await vs_client.vserver_get("/v2/pro-x/sshKeys", params={"page": 1, "size": 10})
-    assert route.calls.last.request.headers["portal-user-id"] == "12345"
+    request = route.calls.last.request
+    assert request.headers["Authorization"] == "Bearer mocked-token"
+    assert request.url.params["page"] == "1"
+    assert request.url.params["size"] == "10"

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import httpx
 import logging
-import os
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.config import VksConfig
 from typing import Any
@@ -63,10 +62,6 @@ class VksClient:
         for attempt in range(MAX_RETRIES + 1):
             token = await self._token_manager.get_token()
             headers = {"Authorization": f"Bearer {token}"}
-            if service == "vserver":
-                portal = os.environ.get("GRN_PORTAL_USER_ID")
-                if portal:
-                    headers["portal-user-id"] = portal
 
             try:
                 async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
