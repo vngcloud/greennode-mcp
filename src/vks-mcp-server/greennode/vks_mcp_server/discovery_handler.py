@@ -8,13 +8,32 @@ from greennode.vks_mcp_server.validators import validate_id
 from pydantic import Field
 
 
-def _require_project_id(config: VksConfig) -> str:
-    """Return the configured project_id or raise a clear error."""
-    if not config.project_id:
+async def _require_project_id(
+    config: VksConfig, client: VksClient, region: str | None = None
+) -> str:
+    """Return the project_id, auto-discovering it from vServer when not configured.
+
+    Resolution order: configured value (GRN_PROJECT_ID / credentials file) first;
+    otherwise fetch it from vServer ``GET /v1/projects``. Each user has exactly one
+    project, so the single returned project is used and cached on the config so
+    later tool calls don't refetch.
+    """
+    if config.project_id:
+        return config.project_id
+
+    data = await client.vserver_get("/v1/projects", region=region)
+    projects = _as_list(data, "projects")
+    if not projects or not isinstance(projects[0], dict):
         raise ValueError(
-            "project_id is not configured. Run 'grn configure' or set GRN_PROJECT_ID."
+            "Could not determine project_id: vServer returned no project. "
+            "Set GRN_PROJECT_ID or run 'grn configure'."
         )
-    return config.project_id
+    pid = projects[0].get("projectId")
+    if not pid:
+        raise ValueError("Could not determine project_id from the vServer response.")
+
+    config.project_id = pid  # cache for subsequent tool calls
+    return pid
 
 
 def _as_list(data, *wrapper_keys):
@@ -41,7 +60,7 @@ def _table(title: str, header: str, sep: str, rows: list[str], empty: str) -> st
 
 async def _vpc_list(config: VksConfig, client: VksClient, region: str | None = None) -> str:
     """Fetch VPCs/networks, return a markdown table."""
-    pid = _require_project_id(config)
+    pid = await _require_project_id(config, client, region)
     data = await client.vserver_get(f"/v2/{pid}/networks", region=region)
     items = _as_list(data, "listData")
     rows = []
@@ -64,7 +83,7 @@ async def _subnet_list(
 ) -> str:
     """Fetch subnets of a VPC, return a markdown table."""
     validate_id(vpc_id, "vpc_id")
-    pid = _require_project_id(config)
+    pid = await _require_project_id(config, client, region)
     data = await client.vserver_get(f"/v2/{pid}/networks/{vpc_id}/subnets", region=region)
     items = _as_list(data, "listData")
     rows = []
@@ -105,7 +124,7 @@ async def _flavor_list(
     need: str | None = None,
 ) -> str:
     """Fetch cluster flavors as a markdown table, each row tagged with a suggested deployment-need group, optionally filtered to one group via *need*."""
-    pid = _require_project_id(config)
+    pid = await _require_project_id(config, client, region)
     data = await client.vserver_get(f"/v1/{pid}/flavors/customs/clusters", region=region)
     items = _as_list(data, "listData")
     rows = []
@@ -135,7 +154,7 @@ async def _flavor_list(
 
 async def _sshkey_list(config: VksConfig, client: VksClient, region: str | None = None) -> str:
     """Fetch SSH keys, return a markdown table."""
-    pid = _require_project_id(config)
+    pid = await _require_project_id(config, client, region)
     data = await client.vserver_get(
         f"/v2/{pid}/sshKeys", region=region, params={"page": 1, "size": 100}
     )
@@ -154,7 +173,7 @@ async def _sshkey_list(config: VksConfig, client: VksClient, region: str | None 
 
 async def _secgroup_list(config: VksConfig, client: VksClient, region: str | None = None) -> str:
     """Fetch security groups, return a markdown table."""
-    pid = _require_project_id(config)
+    pid = await _require_project_id(config, client, region)
     data = await client.vserver_get(f"/v2/{pid}/secgroups", region=region)
     items = _as_list(data, "listData")
     rows = [

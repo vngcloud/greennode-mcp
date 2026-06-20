@@ -20,12 +20,19 @@ async def _cluster_versions_list(
 ) -> list[types.TextContent]:
     """Fetch and format available Kubernetes cluster versions."""
     data = await client.get("/v1/cluster-versions", region=region)
-    items = data.get("items", data) if isinstance(data, list) else data
-    if isinstance(items, dict):
-        items = items.get("items", items)
+    # Normalise to a list of version dicts. The endpoint may return a bare array
+    # or an object wrapping it under "items"/"data".
+    if isinstance(data, dict):
+        items = data.get("items", data.get("data", []))
+    elif isinstance(data, list):
+        items = data
+    else:
+        items = []
+    if not isinstance(items, list):
+        items = []
 
-    # Filter enabled versions only
-    items = [v for v in items if v.get("enable", True)]
+    # Filter enabled versions only (ignore any non-dict entries defensively)
+    items = [v for v in items if isinstance(v, dict) and v.get("enable", True)]
 
     # Find stable versions for the "recommended" marker
     stable_versions = [

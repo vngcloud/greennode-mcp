@@ -57,3 +57,24 @@ async def test_cluster_versions_list(config_and_client):
     assert "v1.28.0" in text
     assert "v1.27.0" not in text
     assert "recommended" in text.lower()
+
+
+CLUSTER_VERSIONS_BARE_ARRAY = [
+    {"version": "v1.30.0", "stage": "STABLE", "deprecatedAt": None, "enable": True},
+    {"version": "v1.29.0", "stage": "RAPID", "deprecatedAt": None, "enable": True},
+]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_cluster_versions_list_bare_array(config_and_client):
+    """A top-level array response must not crash with 'list' object has no attribute 'get'."""
+    config, client = config_and_client
+    _mock_iam(respx.mock)
+    respx.get(f"{VKS_BASE}/v1/cluster-versions").mock(
+        return_value=httpx.Response(200, json=CLUSTER_VERSIONS_BARE_ARRAY),
+    )
+    result = await _cluster_versions_list(config, client, region=None)
+    text = result[0].text
+    assert "v1.30.0" in text
+    assert "v1.29.0" in text

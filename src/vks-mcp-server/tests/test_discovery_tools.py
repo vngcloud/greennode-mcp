@@ -10,6 +10,7 @@ from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.discovery_handler import (
     _flavor_list,
+    _require_project_id,
     _secgroup_list,
     _sshkey_list,
     _subnet_list,
@@ -208,3 +209,45 @@ async def test_secgroup_list(config, client):
     result = await _secgroup_list(config, client)
     assert "default" in result
     assert "secg-1" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_require_project_id_uses_configured(config, client):
+    """A configured project_id is returned without calling vServer."""
+    config.project_id = "pro-test-0001"
+    pid = await _require_project_id(config, client, region=None)
+    assert pid == "pro-test-0001"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_require_project_id_autodiscovers(config, client):
+    """When project_id is unset, it is fetched from /v1/projects and cached."""
+    config.project_id = None
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v1/projects").mock(
+        return_value=httpx.Response(
+            200, json={"projects": [{"projectId": "pro-disc-9999", "userId": "u1"}]}
+        )
+    )
+    pid = await _require_project_id(config, client, region=None)
+    assert pid == "pro-disc-9999"
+    assert config.project_id == "pro-disc-9999"  # cached
+    # second call must not hit the API again
+    pid2 = await _require_project_id(config, client, region=None)
+    assert pid2 == "pro-disc-9999"
+    assert route.call_count == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_require_project_id_no_project_errors(config, client):
+    """An empty project list yields a clear error."""
+    config.project_id = None
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v1/projects").mock(
+        return_value=httpx.Response(200, json={"projects": []})
+    )
+    with pytest.raises(ValueError, match="project_id"):
+        await _require_project_id(config, client, region=None)
