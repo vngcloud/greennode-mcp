@@ -24,6 +24,7 @@ class VksConfig:
     client_secret: str
     default_region: str
     regions: dict[str, RegionEndpoints]
+    project_id: str | None = None
 
     def get_endpoints(self, region: str | None = None) -> RegionEndpoints:
         """Return endpoints for the given region.
@@ -118,9 +119,18 @@ def load_config(config_dir: Path) -> VksConfig:
         if cfg_parser.has_section(profile):
             default_region = cfg_parser.get(profile, "region", fallback=default_region)
 
+    # --- Project ID ---
+    project_id = os.environ.get("GRN_PROJECT_ID")
+    if not project_id and config_path.exists():
+        cfg_parser = configparser.ConfigParser()
+        cfg_parser.read(config_path)
+        if cfg_parser.has_section(profile):
+            project_id = cfg_parser.get(profile, "project_id", fallback=None)
+
     return VksConfig(
         client_id=client_id,
         client_secret=client_secret,
         default_region=default_region,
         regions=REGIONS,
+        project_id=project_id,
     )

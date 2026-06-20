@@ -15,6 +15,6 @@ def sample_config(tmp_path):
     )
 
     config = greenode_dir / "config"
-    config.write_text("[default]\nregion = HCM-3\noutput = json\n")
+    config.write_text("[default]\nregion = HCM-3\noutput = json\nproject_id = pro-test-0001\n")
 
     return greenode_dir

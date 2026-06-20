@@ -105,3 +105,42 @@ async def test_client_raises_on_404(client):
     )
     with pytest.raises(RuntimeError, match="not found"):
         await client.get("/v1/clusters/missing")
+
+
+# ---------------------------------------------------------------------------
+# vServer tests
+# ---------------------------------------------------------------------------
+
+VSERVER_BASE = "https://hcm-3.api.vngcloud.vn/vserver/vserver-gateway"
+
+
+@pytest.fixture
+def vs_client(sample_config):
+    cfg = load_config(sample_config)
+    return VksClient(cfg, TokenManager(cfg))
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_vserver_get_hits_vserver_base(vs_client):
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/networks").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    result = await vs_client.vserver_get("/v2/pro-x/networks")
+    assert route.called
+    assert result == {"listData": []}
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_vserver_get_sends_bearer_token_and_params(vs_client):
+    _mock_iam(respx.mock)
+    route = respx.get(f"{VSERVER_BASE}/v2/pro-x/sshKeys").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    await vs_client.vserver_get("/v2/pro-x/sshKeys", params={"page": 1, "size": 10})
+    request = route.calls.last.request
+    assert request.headers["Authorization"] == "Bearer mocked-token"
+    assert request.url.params["page"] == "1"
+    assert request.url.params["size"] == "10"

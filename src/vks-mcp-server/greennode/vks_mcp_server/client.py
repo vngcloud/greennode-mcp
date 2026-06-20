@@ -34,6 +34,7 @@ class VksClient:
         params: dict[str, Any] | None = None,
         json: Any = None,
         raw_response: bool = False,
+        service: str = "vks",
         _retried_auth: bool = False,
     ) -> Any:
         """Send an HTTP request to the VKS API.
@@ -50,10 +51,13 @@ class VksClient:
             json: Optional JSON body.
             raw_response: If ``True``, return the raw response text
                 instead of parsed JSON.
+            service: Target API — ``"vks"`` (default) uses the VKS base URL,
+                ``"vserver"`` uses the vServer base URL.
             _retried_auth: Internal flag to prevent infinite 401 retry loops.
         """
         endpoints = self._config.get_endpoints(region)
-        url = f"{endpoints.vks}{path}"
+        base = endpoints.vserver if service == "vserver" else endpoints.vks
+        url = f"{base}{path}"
 
         for attempt in range(MAX_RETRIES + 1):
             token = await self._token_manager.get_token()
@@ -96,6 +100,7 @@ class VksClient:
                     params=params,
                     json=json,
                     raw_response=raw_response,
+                    service=service,
                     _retried_auth=True,
                 )
 
@@ -209,3 +214,12 @@ class VksClient:
     ) -> str:
         """Send a GET request and return the raw response text."""
         return await self._request("GET", path, region=region, params=params, raw_response=True)
+
+    async def vserver_get(
+        self,
+        path: str,
+        region: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        """Send a GET request to the vServer API (not the VKS API)."""
+        return await self._request("GET", path, region=region, params=params, service="vserver")
