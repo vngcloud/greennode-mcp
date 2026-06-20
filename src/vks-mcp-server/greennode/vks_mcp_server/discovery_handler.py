@@ -131,6 +131,45 @@ async def _flavor_list(
     )
 
 
+async def _sshkey_list(config: VksConfig, client: VksClient, region: str | None = None) -> str:
+    """Fetch SSH keys, return a markdown table."""
+    pid = _require_project_id(config)
+    data = await client.vserver_get(
+        f"/v2/{pid}/sshKeys", region=region, params={"page": 1, "size": 100}
+    )
+    items = _as_list(data, "listData")
+    rows = [
+        f"| {i} | {k.get('name', '')} | {k.get('id', '')} |"
+        for i, k in enumerate(items, start=1)
+    ]
+    return _table(
+        "SSH keys:",
+        "| # | Name | ID |",
+        "|---|---|---|",
+        rows,
+        "No SSH key found. Create one in the VNG Cloud console first.",
+    )
+
+
+async def _secgroup_list(config: VksConfig, client: VksClient, region: str | None = None) -> str:
+    """Fetch security groups, return a markdown table."""
+    pid = _require_project_id(config)
+    data = await client.vserver_get(f"/v2/{pid}/secgroups", region=region)
+    items = _as_list(data, "listData")
+    rows = [
+        f"| {i} | {g.get('name', '')} | {g.get('id', '')} | "
+        f"{g.get('description', '')} | {g.get('status', '')} |"
+        for i, g in enumerate(items, start=1)
+    ]
+    return _table(
+        "Security groups:",
+        "| # | Name | ID | Description | Status |",
+        "|---|---|---|---|---|",
+        rows,
+        "No security group found in this project/region.",
+    )
+
+
 class DiscoveryHandler:
     """Register and serve read-only vServer resource-discovery MCP tools."""
 
@@ -142,6 +181,8 @@ class DiscoveryHandler:
         self.mcp.tool(name="vpc_list")(self.vpc_list)
         self.mcp.tool(name="subnet_list")(self.subnet_list)
         self.mcp.tool(name="flavor_list")(self.flavor_list)
+        self.mcp.tool(name="sshkey_list")(self.sshkey_list)
+        self.mcp.tool(name="secgroup_list")(self.secgroup_list)
 
     async def vpc_list(
         self,
@@ -168,3 +209,17 @@ class DiscoveryHandler:
     ) -> str:
         """List cluster flavors with a suggested deployment-need group. Use the ID as `flavorId`."""
         return await _flavor_list(self.config, self.client, region=region, need=need)
+
+    async def sshkey_list(
+        self,
+        region: str | None = Field(None, description="Region override"),
+    ) -> str:
+        """List SSH keys in the project. Use the ID as `sshKeyId` when creating a node group."""
+        return await _sshkey_list(self.config, self.client, region=region)
+
+    async def secgroup_list(
+        self,
+        region: str | None = Field(None, description="Region override"),
+    ) -> str:
+        """List security groups. Use IDs in `securityGroups` when creating a node group."""
+        return await _secgroup_list(self.config, self.client, region=region)

@@ -10,6 +10,8 @@ from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.discovery_handler import (
     _flavor_list,
+    _secgroup_list,
+    _sshkey_list,
     _subnet_list,
     _suggest_group,
     _vpc_list,
@@ -137,3 +139,48 @@ async def test_flavor_list_filters_by_need(config, client):
     result = await _flavor_list(config, client, need="Compute")
     assert "8c_16g" in result
     assert "2c_4g" not in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_sshkey_list(config, client):
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v2/{PID}/sshKeys").mock(
+        return_value=httpx.Response(
+            200,
+            json={"listData": [{"id": "ssh-1", "name": "my-key"}], "totalItem": 1},
+        )
+    )
+    result = await _sshkey_list(config, client)
+    assert "my-key" in result
+    assert "ssh-1" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_sshkey_list_empty(config, client):
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v2/{PID}/sshKeys").mock(
+        return_value=httpx.Response(200, json={"listData": []})
+    )
+    result = await _sshkey_list(config, client)
+    assert "No SSH key" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_secgroup_list(config, client):
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v2/{PID}/secgroups").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "listData": [
+                    {"id": "secg-1", "name": "default", "description": "default sg", "status": "ACTIVE"}
+                ]
+            },
+        )
+    )
+    result = await _secgroup_list(config, client)
+    assert "default" in result
+    assert "secg-1" in result
