@@ -82,6 +82,55 @@ async def _subnet_list(
     )
 
 
+def _suggest_group(flavor: dict) -> str:
+    """Classify a flavor into a deployment-need group."""
+    cpu = float(flavor.get("cpu") or 0)
+    memory = float(flavor.get("memory") or 0)
+    gpu = float(flavor.get("gpu") or 0)
+    if gpu > 0:
+        return "AI/GPU"
+    if cpu and memory / cpu >= 6:
+        return "RAM cao"
+    if cpu >= 8:
+        return "Compute"
+    if cpu <= 2:
+        return "Dev/test"
+    return "Cân bằng"
+
+
+async def _flavor_list(
+    config: VksConfig,
+    client: VksClient,
+    region: str | None = None,
+    need: str | None = None,
+) -> str:
+    """Fetch cluster flavors, return a markdown table grouped by need."""
+    pid = _require_project_id(config)
+    data = await client.vserver_get(f"/v1/{pid}/flavors/customs/clusters", region=region)
+    items = _as_list(data, "listData")
+    rows = []
+    n = 0
+    for f in items:
+        group = _suggest_group(f)
+        if need and group.lower() != need.lower():
+            continue
+        n += 1
+        rows.append(
+            f"| {n} | {f.get('name', '')} | {f.get('flavorId', '')} | "
+            f"{f.get('cpu', '')} | {f.get('memory', '')} | {f.get('gpu', '')} | {group} |"
+        )
+    empty = (
+        f"No flavor found for need '{need}'." if need else "No flavor found in this project/region."
+    )
+    return _table(
+        "Flavors:" + (f" (need: {need})" if need else ""),
+        "| # | Name | ID | vCPU | RAM (GB) | GPU | Nhóm gợi ý |",
+        "|---|---|---|---|---|---|---|",
+        rows,
+        empty,
+    )
+
+
 class DiscoveryHandler:
     """Register and serve read-only vServer resource-discovery MCP tools."""
 
@@ -92,6 +141,7 @@ class DiscoveryHandler:
 
         self.mcp.tool(name="vpc_list")(self.vpc_list)
         self.mcp.tool(name="subnet_list")(self.subnet_list)
+        self.mcp.tool(name="flavor_list")(self.flavor_list)
 
     async def vpc_list(
         self,
@@ -107,3 +157,14 @@ class DiscoveryHandler:
     ) -> str:
         """List subnets of a VPC. Use the ID as `subnetId` when creating a cluster."""
         return await _subnet_list(self.config, self.client, vpc_id=vpc_id, region=region)
+
+    async def flavor_list(
+        self,
+        need: str | None = Field(
+            None,
+            description="Filter by deployment need group: Dev/test, Cân bằng, Compute, RAM cao, AI/GPU",
+        ),
+        region: str | None = Field(None, description="Region override"),
+    ) -> str:
+        """List cluster flavors with a suggested deployment-need group. Use the ID as `flavorId`."""
+        return await _flavor_list(self.config, self.client, region=region, need=need)

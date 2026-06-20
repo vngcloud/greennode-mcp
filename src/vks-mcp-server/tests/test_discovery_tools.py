@@ -9,7 +9,9 @@ from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import load_config
 from greennode.vks_mcp_server.discovery_handler import (
+    _flavor_list,
     _subnet_list,
+    _suggest_group,
     _vpc_list,
 )
 
@@ -88,3 +90,50 @@ async def test_subnet_list(config, client):
 async def test_subnet_list_rejects_bad_vpc_id(config, client):
     with pytest.raises(ValueError):
         await _subnet_list(config, client, vpc_id="bad id/../x")
+
+
+def test_suggest_group_classifies():
+    from greennode.vks_mcp_server.discovery_handler import _suggest_group
+    assert _suggest_group({"cpu": 2, "memory": 4, "gpu": 1}) == "AI/GPU"
+    assert _suggest_group({"cpu": 2, "memory": 4, "gpu": 0}) == "Dev/test"
+    assert _suggest_group({"cpu": 8, "memory": 16, "gpu": 0}) == "Compute"
+    assert _suggest_group({"cpu": 4, "memory": 32, "gpu": 0}) == "RAM cao"
+    assert _suggest_group({"cpu": 4, "memory": 8, "gpu": 0}) == "Cân bằng"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_flavor_list(config, client):
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/flavors/customs/clusters").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"flavorId": "flv-1", "name": "2c_4g", "cpu": 2, "memory": 4, "gpu": 0, "group": "standard"},
+                {"flavorId": "flv-2", "name": "8c_16g", "cpu": 8, "memory": 16, "gpu": 0, "group": "standard"},
+            ],
+        )
+    )
+    result = await _flavor_list(config, client)
+    assert "2c_4g" in result and "flv-1" in result
+    assert "8c_16g" in result
+    assert "Dev/test" in result
+    assert "Compute" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_flavor_list_filters_by_need(config, client):
+    _mock_iam(respx.mock)
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/flavors/customs/clusters").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"flavorId": "flv-1", "name": "2c_4g", "cpu": 2, "memory": 4, "gpu": 0},
+                {"flavorId": "flv-2", "name": "8c_16g", "cpu": 8, "memory": 16, "gpu": 0},
+            ],
+        )
+    )
+    result = await _flavor_list(config, client, need="Compute")
+    assert "8c_16g" in result
+    assert "2c_4g" not in result
