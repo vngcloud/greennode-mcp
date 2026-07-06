@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/vngcloud/greennode-mcp/compare/vks-mcp-server-v0.4.1...vks-mcp-server-v0.5.0) (2026-07-06)
+
+
+### Features
+
+* GreenNode MCP monorepo — VKS MCP server ([3c2f7a5](https://github.com/vngcloud/greennode-mcp/commit/3c2f7a5c69f29b161547bd3e1d2e15eba1c65140))
+
 ## [Unreleased]
 
 ### Fixed
