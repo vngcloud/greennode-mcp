@@ -113,7 +113,7 @@ greennode-cli command names (`list-clusters` ↔ `list_clusters`).
 |------|--------|-------------|
 | `list_clusters` | read | List clusters (structured summaries; every page fetched automatically) |
 | `get_cluster` | read | Full cluster detail (structured) |
-| `get_cluster_kubeconfig` | read | Kubeconfig YAML for a cluster (new clusters: run `generate_kubeconfig` first) |
+| `get_cluster_kubeconfig` | read (**sensitive**) | Kubeconfig YAML — cluster-admin credentials, needs `--allow-sensitive-data-access` (new clusters: run `generate_kubeconfig` first) |
 | `get_cluster_events` | read | Cluster events table |
 | `list_cluster_versions` | read | Available Kubernetes versions (cached 30 min) |
 | `validate_cluster_create` | read | Validate a create body without creating |

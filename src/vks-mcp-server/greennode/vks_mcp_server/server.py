@@ -63,7 +63,7 @@ For full step-by-step flows (safe defaults, plan review, confirm gate) load the 
 - get_creation_guide: Step-by-step guide for the create flows — call it FIRST
 - get_access_token: Get the current access token
 - list_clusters, get_cluster: View clusters (get_cluster is step 1 of the node-group flow)
-- get_cluster_kubeconfig: Get kubeconfig YAML (a new cluster needs generate_kubeconfig first)
+- get_cluster_kubeconfig: Get kubeconfig YAML — cluster-admin credentials, requires --allow-sensitive-data-access (a new cluster needs generate_kubeconfig first)
 - get_cluster_events: View cluster events
 - delete_cluster_dryrun: Preview information before deleting a cluster
 - validate_cluster_create: Validate body before creating a cluster
@@ -200,11 +200,14 @@ def _mode_addendum(allow_write: bool, allow_sensitive_data_access: bool) -> str:
             "to restart the server with --allow-write."
         )
     if allow_sensitive_data_access:
-        sensitive = "- Sensitive data: ENABLED — Kubernetes Secrets can be read."
+        sensitive = (
+            "- Sensitive data: ENABLED — Kubernetes Secrets and the cluster "
+            "kubeconfig can be read."
+        )
     else:
         sensitive = (
-            "- Sensitive data: OFF — reading Kubernetes Secrets requires restarting "
-            "with --allow-sensitive-data-access."
+            "- Sensitive data: OFF — reading Kubernetes Secrets or the cluster "
+            "kubeconfig requires restarting with --allow-sensitive-data-access."
         )
     return f"\n## This session (runtime mode)\n\n{write}\n{sensitive}\n"
 
@@ -352,7 +355,13 @@ def main() -> None:
     )
 
     AuthHandler(mcp, config, token_manager)
-    ClusterHandler(mcp, config, client, allow_write=args.allow_write)
+    ClusterHandler(
+        mcp,
+        config,
+        client,
+        allow_write=args.allow_write,
+        allow_sensitive_data_access=args.allow_sensitive_data_access,
+    )
     NodeGroupHandler(mcp, config, client, allow_write=args.allow_write)
     discovery_cache = DiscoveryCache()
     DiscoveryHandler(mcp, config, client, discovery_cache)

@@ -37,7 +37,7 @@ uv run vks-mcp-server
 # Enable create/update/delete operations
 uv run vks-mcp-server --allow-write
 
-# Enable reading Kubernetes Secrets
+# Enable reading Kubernetes Secrets + the cluster kubeconfig (admin credentials)
 uv run vks-mcp-server --allow-sensitive-data-access
 
 # HTTP transport (default: stdio); Docker image serves this on port 8080

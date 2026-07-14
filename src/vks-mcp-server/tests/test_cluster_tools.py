@@ -523,9 +523,10 @@ def test_extract_kubeconfig_cluster_not_ready():
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_get_cluster_kubeconfig_returns_yaml_not_envelope(handler, respx_mock):
+async def test_get_cluster_kubeconfig_returns_yaml_not_envelope(config, client, respx_mock):
     """The tool must hand back kubectl-ready YAML, not the JSON envelope."""
     _mock_iam(respx_mock)
+    handler = ClusterHandler(FastMCP("t"), config, client, allow_sensitive_data_access=True)
     respx_mock.get(f"{VKS_BASE}/v1/clusters/k8s-abc/kubeconfig").mock(
         return_value=httpx.Response(200, json={"kubeConfig": _KC_YAML, "status": "ACTIVE"})
     )
@@ -593,3 +594,29 @@ async def test_cluster_delete_dryrun_lists_all_node_groups(client):
     text = result[0].text
     assert "Node groups to be deleted (12)" in text
     assert "ng-11" in text  # the tail beyond one page is present
+
+
+# ---------------------------------------------------------------------------
+# get_cluster_kubeconfig sensitive-data gate (kubeconfig = cluster-admin creds)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_cluster_kubeconfig_denied_without_sensitive_flag(config, client):
+    """The kubeconfig carries a cluster-admin cert + private key — same gate as
+    Secrets/logs: no --allow-sensitive-data-access, no kubeconfig."""
+    handler = ClusterHandler(FastMCP("t"), config, client)  # default: no sensitive access
+    with pytest.raises(RuntimeError, match="allow-sensitive-data-access"):
+        await handler.get_cluster_kubeconfig(cluster_id="k8s-abc", region=None)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_cluster_kubeconfig_allowed_with_sensitive_flag(config, client, respx_mock):
+    _mock_iam(respx_mock)
+    handler = ClusterHandler(FastMCP("t"), config, client, allow_sensitive_data_access=True)
+    respx_mock.get(f"{VKS_BASE}/v1/clusters/k8s-abc/kubeconfig").mock(
+        return_value=httpx.Response(200, json={"kubeConfig": _KC_YAML, "status": "ACTIVE"})
+    )
+    result = await handler.get_cluster_kubeconfig(cluster_id="k8s-abc", region=None)
+    assert result.startswith("apiVersion: v1")

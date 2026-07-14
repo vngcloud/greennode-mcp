@@ -56,7 +56,8 @@ xác nhận trước khi thực thi. Bạn KHÔNG cần biết ID tài nguyên t
   LB/CSI plugin) — KHÔNG đổi được tên/description. Lịch tự nâng cấp:
   `configure_auto_upgrade`; tự phục hồi node: `configure_auto_healing`.
 - Kết nối cluster: cluster mới cần `generate_kubeconfig` một lần (async, cần
-  `--allow-write`), rồi `get_cluster_kubeconfig`. Xác thực: `get_access_token`.
+  `--allow-write`), rồi `get_cluster_kubeconfig` (kubeconfig = credential admin —
+  cần `--allow-sensitive-data-access`). Xác thực: `get_access_token`.
 
 ## Nguyên tắc
 - Đọc thì tự do; MỌI thao tác ghi phải qua MỘT lần xác nhận rõ ràng (hard gate).

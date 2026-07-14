@@ -293,11 +293,19 @@ def _cluster_create_validate(
 class ClusterHandler:
     """Register and serve VKS cluster-management MCP tools."""
 
-    def __init__(self, mcp, config: VksConfig, client: VksClient, allow_write: bool = False):
+    def __init__(
+        self,
+        mcp,
+        config: VksConfig,
+        client: VksClient,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+    ):
         self.mcp = mcp
         self.config = config
         self.client = client
         self.allow_write = allow_write
+        self.allow_sensitive_data_access = allow_sensitive_data_access
 
         # Read-only tools (always registered)
         self.mcp.tool(name="list_clusters", annotations=READ)(self.list_clusters)
@@ -493,11 +501,21 @@ class ClusterHandler:
     ) -> str:
         """Gets the kubeconfig YAML for a VKS cluster. Returns raw YAML text.
 
+        ## Requirements
+        - Server must run with --allow-sensitive-data-access (the kubeconfig
+          carries cluster-admin credentials)
+
         ## Workflow
         - A NEW cluster has no kubeconfig until one is generated: call
           generate_kubeconfig(cluster_id) once, then poll this tool until it
           returns YAML (generation is asynchronous).
         """
+        if not self.allow_sensitive_data_access:
+            raise RuntimeError(
+                "Access denied: the kubeconfig carries cluster-admin credentials "
+                "(certificate + private key); reading it requires the "
+                "--allow-sensitive-data-access flag."
+            )
         result = await _cluster_get_kubeconfig(
             self.client,
             {"cluster_id": cluster_id, "region": region},
