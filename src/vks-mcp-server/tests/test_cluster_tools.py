@@ -620,3 +620,18 @@ async def test_get_cluster_kubeconfig_allowed_with_sensitive_flag(config, client
     )
     result = await handler.get_cluster_kubeconfig(cluster_id="k8s-abc", region=None)
     assert result.startswith("apiVersion: v1")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_delete_auto_upgrade_handles_empty_202(config, client, respx_mock):
+    """DELETE .../auto-upgrade-config also answers 202 with an empty body
+    (bug report F-02) — the tool must report success, not a JSON parse error."""
+    _mock_iam(respx_mock)
+    handler = ClusterHandler(FastMCP("t"), config, client, allow_write=True)
+    respx_mock.delete(f"{VKS_BASE}/v1/clusters/k8s-abc/auto-upgrade-config").mock(
+        return_value=httpx.Response(202)
+    )
+    result = await handler.delete_auto_upgrade(cluster_id="k8s-abc", region=None)
+    assert "deleted successfully" in result
+    assert "None" not in result
