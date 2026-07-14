@@ -46,8 +46,10 @@ HTTP-transport / auth variables (all optional):
 | Variable | Purpose |
 |----------|---------|
 | `GRN_MCP_API_KEY` | Static bearer token for `--auth-mode api-key` |
-| `GRN_MCP_JWT_ISSUER` / `GRN_MCP_JWT_JWKS_URI` / `GRN_MCP_JWT_AUDIENCE` | JWT verification for `--auth-mode jwt` |
-| `GRN_MCP_RESOURCE_URL` | This server's resource URL (Protected Resource Metadata) |
+| `GRN_MCP_JWT_ISSUER` | `--auth-mode jwt`: expected `iss` claim — only tokens minted by this identity provider are accepted |
+| `GRN_MCP_JWT_JWKS_URI` | `--auth-mode jwt`: JWKS URL of that issuer — public keys used to verify the JWT signature (rotated automatically via `kid`) |
+| `GRN_MCP_JWT_AUDIENCE` | `--auth-mode jwt`: expected `aud` claim — the token must be issued FOR this server, so a valid token for another service cannot be replayed here |
+| `GRN_MCP_RESOURCE_URL` | `--auth-mode jwt`: this server's public URL, advertised via Protected Resource Metadata (RFC 9728) so MCP clients can discover the authorization server and run the OAuth flow automatically |
 | `GRN_MCP_AUTH_DEBUG` | `1` = redacted inbound-auth diagnostics + `GET /whoami` (never in production) |
 | `GRN_MCP_VKS_AUTH` | Upstream VKS identity: `service-account` (default) or `passthrough` (per-user; HTTP only) |
 
