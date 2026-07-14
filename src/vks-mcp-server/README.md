@@ -100,7 +100,7 @@ serves streamable-http on port 8080.
 
 Behind the GreenNode MCP Gateway: use `api-key` when the Gateway's outbound auth
 is API Key, or `jwt` when it is OAuth 2.0. `/health` is always unauthenticated.
-(Per-user VKS access is a future phase.)
+Per-user VKS access: run with `--vks-auth passthrough` — the Gateway forwards each caller's IAM bearer token in `Authorization`, and the server uses it for every VKS/vServer call (tokenless requests are rejected; caches are isolated per caller; incompatible with `--auth-mode api-key`).
 
 ## Tools
 

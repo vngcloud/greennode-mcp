@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import sys
+from greennode.mcp_core.http import user_token_var
 from greennode.vks_mcp_server.auth import TokenManager
 from greennode.vks_mcp_server.auth_debug import summarize_request
 from greennode.vks_mcp_server.auth_handler import AuthHandler
@@ -120,6 +121,35 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class UserTokenPassthroughMiddleware(BaseHTTPMiddleware):
+    """--vks-auth passthrough: the caller's IAM bearer token IS the upstream identity.
+
+    The AgentBase Gateway forwards the inbound user's IAM token in the
+    Authorization header (replacing gateway->server auth). Every request must
+    carry one; it is stashed in a contextvar so all VKS/vServer calls made
+    while serving this request use the CALLER's identity — never the shared
+    service account (a missing token is a 401, not a silent fallback).
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """Require a Bearer token and scope it to this request's context."""
+        if request.url.path == "/health":
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or not auth[7:].strip():
+            return Response(
+                "Unauthorized: --vks-auth passthrough requires the caller's IAM "
+                "bearer token in the Authorization header.",
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        ctx_token = user_token_var.set(auth[7:].strip())
+        try:
+            return await call_next(request)
+        finally:
+            user_token_var.reset(ctx_token)
+
+
 class AuthDebugMiddleware(BaseHTTPMiddleware):
     """DIAGNOSTIC: log a redacted summary of every inbound request, then pass it through unchanged.
 
@@ -179,7 +209,9 @@ def _resolve_auth(args) -> tuple[str, JwtAuthConfig | None, str | None]:
     return mode, jwt_config, api_key
 
 
-def _mode_addendum(allow_write: bool, allow_sensitive_data_access: bool) -> str:
+def _mode_addendum(
+    allow_write: bool, allow_sensitive_data_access: bool, vks_auth: str = "service-account"
+) -> str:
     """Runtime-mode addendum for SERVER_INSTRUCTIONS (EKS pattern).
 
     The server knows this session's mode at startup — telling the agent up
@@ -209,7 +241,19 @@ def _mode_addendum(allow_write: bool, allow_sensitive_data_access: bool) -> str:
             "- Sensitive data: OFF — reading Kubernetes Secrets or the cluster "
             "kubeconfig requires restarting with --allow-sensitive-data-access."
         )
-    return f"\n## This session (runtime mode)\n\n{write}\n{sensitive}\n"
+    if vks_auth == "passthrough":
+        upstream = (
+            "- VKS identity: PASSTHROUGH — every VKS/vServer call runs as the "
+            "CALLER, using the IAM bearer token of this request. Results, "
+            "projects, and permissions are per-user; requests without a token "
+            "are rejected."
+        )
+    else:
+        upstream = (
+            "- VKS identity: shared service account — all callers see the same "
+            "VKS project and permissions."
+        )
+    return f"\n## This session (runtime mode)\n\n{write}\n{sensitive}\n{upstream}\n"
 
 
 def create_server(
@@ -217,13 +261,16 @@ def create_server(
     auth_debug: bool = False,
     allow_write: bool = False,
     allow_sensitive_data_access: bool = False,
+    vks_auth: str = "service-account",
 ) -> FastMCP:
     """Create and return a FastMCP server instance.
 
     When jwt_config is provided, the server runs as an OAuth 2.1 Resource Server
     (verify Bearer JWT + emit 401/WWW-Authenticate + Protected Resource Metadata).
     """
-    instructions = SERVER_INSTRUCTIONS + _mode_addendum(allow_write, allow_sensitive_data_access)
+    instructions = SERVER_INSTRUCTIONS + _mode_addendum(
+        allow_write, allow_sensitive_data_access, vks_auth
+    )
     if jwt_config is not None:
         from mcp.server.auth.settings import AuthSettings
 
@@ -278,6 +325,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Enable access to sensitive data (required for reading Kubernetes Secrets)",
+    )
+    parser.add_argument(
+        "--vks-auth",
+        choices=["service-account", "passthrough"],
+        default=None,
+        help="Upstream VKS identity: service-account (default; shared IAM "
+        "credentials from ~/.greenode) or passthrough (HTTP only: each "
+        "request's Authorization bearer token — the caller's IAM token, "
+        "forwarded by the AgentBase Gateway — is used for all VKS/vServer "
+        "calls; env: GRN_MCP_VKS_AUTH)",
     )
     parser.add_argument(
         "--transport",
@@ -347,11 +404,26 @@ def main() -> None:
     token_manager = TokenManager(config)
     client = VksClient(config, token_manager)
 
+    vks_auth = args.vks_auth or os.environ.get("GRN_MCP_VKS_AUTH") or "service-account"
+    if vks_auth == "passthrough":
+        if args.transport != "streamable-http":
+            raise SystemExit(
+                "--vks-auth passthrough requires --transport streamable-http "
+                "(the user token arrives per HTTP request)."
+            )
+        if auth_mode == "api-key":
+            raise SystemExit(
+                "--vks-auth passthrough is incompatible with --auth-mode api-key: "
+                "the Authorization header carries the caller's IAM token, not a "
+                "static key."
+            )
+
     mcp = create_server(
         jwt_config,
         auth_debug=auth_debug,
         allow_write=args.allow_write,
         allow_sensitive_data_access=args.allow_sensitive_data_access,
+        vks_auth=vks_auth,
     )
 
     AuthHandler(mcp, config, token_manager)
@@ -406,6 +478,15 @@ def main() -> None:
         starlette_app = mcp.streamable_http_app()
         if auth_mode == "api-key" and api_key:
             starlette_app.add_middleware(BearerTokenMiddleware, api_key=api_key)
+
+        if vks_auth == "passthrough":
+            print(
+                "Note: --vks-auth is 'passthrough'. Every VKS/vServer call uses the "
+                "caller's IAM bearer token from the Authorization header; requests "
+                "without one are rejected (401).",
+                file=sys.stderr,
+            )
+            starlette_app.add_middleware(UserTokenPassthroughMiddleware)
 
         if auth_debug:
             print(

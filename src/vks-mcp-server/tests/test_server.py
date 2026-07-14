@@ -325,3 +325,68 @@ def test_whoami_available_under_jwt_mode():
     app = create_server(jwt_config=cfg, auth_debug=True).streamable_http_app()
     paths = [getattr(r, "path", None) for r in app.router.routes]
     assert "/whoami" in paths
+
+
+# ---------------------------------------------------------------------------
+# --vks-auth passthrough: the caller's IAM token becomes the upstream identity
+# ---------------------------------------------------------------------------
+
+
+def test_vks_auth_flag_default_service_account():
+    # argparse default is None so GRN_MCP_VKS_AUTH can override; main() resolves
+    # None -> "service-account"
+    args = _parse_args([])
+    assert args.vks_auth is None
+
+
+def test_vks_auth_passthrough_flag():
+    args = _parse_args(["--vks-auth", "passthrough", "--transport", "streamable-http"])
+    assert args.vks_auth == "passthrough"
+
+
+def _passthrough_app():
+    from greennode.mcp_core.http import user_token_var
+    from greennode.vks_mcp_server.server import UserTokenPassthroughMiddleware
+
+    seen: dict = {}
+
+    async def echo_identity(request):
+        seen["token"] = user_token_var.get()
+        return PlainTextResponse("ok")
+
+    app = UserTokenPassthroughMiddleware(
+        Starlette(routes=[Route("/", echo_identity), Route("/health", echo_identity)])
+    )
+    return app, seen
+
+
+def test_passthrough_middleware_sets_user_token():
+    app, seen = _passthrough_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/", headers={"Authorization": "Bearer user-iam-tok"})
+    assert r.status_code == 200
+    assert seen["token"] == "user-iam-tok"
+
+
+def test_passthrough_middleware_rejects_missing_token():
+    """Decision 2a: no token -> clear 401, never a silent service-account call."""
+    app, seen = _passthrough_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/")
+    assert r.status_code == 401
+    assert "WWW-Authenticate" in r.headers
+
+
+def test_passthrough_middleware_health_stays_open():
+    app, seen = _passthrough_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    assert client.get("/health").status_code == 200
+
+
+def test_passthrough_middleware_resets_token_after_request():
+    from greennode.mcp_core.http import user_token_var
+
+    app, _ = _passthrough_app()
+    client = TestClient(app, raise_server_exceptions=False)
+    client.get("/", headers={"Authorization": "Bearer leak-check"})
+    assert user_token_var.get() is None  # no bleed into the next context
