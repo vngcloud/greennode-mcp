@@ -49,6 +49,7 @@ HTTP-transport / auth variables (all optional):
 | `GRN_MCP_JWT_ISSUER` / `GRN_MCP_JWT_JWKS_URI` / `GRN_MCP_JWT_AUDIENCE` | JWT verification for `--auth-mode jwt` |
 | `GRN_MCP_RESOURCE_URL` | This server's resource URL (Protected Resource Metadata) |
 | `GRN_MCP_AUTH_DEBUG` | `1` = redacted inbound-auth diagnostics + `GET /whoami` (never in production) |
+| `GRN_MCP_VKS_AUTH` | Upstream VKS identity: `service-account` (default) or `passthrough` (per-user; HTTP only) |
 
 ## Running
 
@@ -81,6 +82,9 @@ Cursor entry:
 
 ```bash
 uv run vks-mcp-server --transport streamable-http --host 0.0.0.0 --port 8080
+
+# Per-user upstream identity (behind the AgentBase Gateway)
+uv run vks-mcp-server --transport streamable-http --port 8080 --vks-auth passthrough
 ```
 
 `GET /health` is always unauthenticated (liveness/readiness). The Docker image
@@ -100,7 +104,23 @@ serves streamable-http on port 8080.
 
 Behind the GreenNode MCP Gateway: use `api-key` when the Gateway's outbound auth
 is API Key, or `jwt` when it is OAuth 2.0. `/health` is always unauthenticated.
-Per-user VKS access: run with `--vks-auth passthrough` — the Gateway forwards each caller's IAM bearer token in `Authorization`, and the server uses it for every VKS/vServer call (tokenless requests are rejected; caches are isolated per caller; incompatible with `--auth-mode api-key`).
+### Upstream VKS identity (`--vks-auth`)
+
+Independent of inbound auth, `--vks-auth` selects **whose credentials the
+server uses against the VKS/vServer APIs**:
+
+- `service-account` (default) — the shared IAM credentials from `~/.greenode`;
+  every caller sees the same project and permissions.
+- `passthrough` (HTTP only) — the AgentBase Gateway forwards each caller's IAM
+  bearer token in `Authorization`, and the server uses **that token** for every
+  VKS/vServer call: per-user projects, permissions, and results.
+  - Requests without a token are rejected (401 + `WWW-Authenticate`) — never a
+    silent service-account fallback; a rejected user token is not retried
+    under a different identity.
+  - All caches (discovery, kubernetes clients, project_id) are isolated per
+    caller identity.
+  - Incompatible with `--auth-mode api-key` (both would claim the
+    `Authorization` header) and with stdio transport.
 
 ## Tools
 

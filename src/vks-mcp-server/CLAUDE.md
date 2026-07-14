@@ -42,6 +42,9 @@ uv run vks-mcp-server --allow-sensitive-data-access
 
 # HTTP transport (default: stdio); Docker image serves this on port 8080
 uv run vks-mcp-server --transport streamable-http --host 0.0.0.0 --port 8080
+
+# Per-user upstream identity (caller's IAM token from the Gateway; HTTP only)
+uv run vks-mcp-server --transport streamable-http --vks-auth passthrough
 ```
 
 ## Inbound auth (HTTP transport)
