@@ -124,6 +124,19 @@ server uses against the VKS/vServer APIs**:
   - Incompatible with `--auth-mode api-key` (both would claim the
     `Authorization` header) and with stdio transport.
 
+  Recommended deployment behind the AgentBase Gateway:
+
+  ```bash
+  vks-mcp-server --transport streamable-http --vks-auth passthrough --auth-mode none
+  ```
+
+  No `GRN_MCP_JWT_*` configuration is needed in this mode: the server does
+  not verify the token itself — the VKS/vServer APIs are the verifier (an
+  invalid or expired token gets a 401 from the API, surfaced to the agent).
+  `--auth-mode jwt` is a separate, optional inbound-verification layer for
+  non-passthrough deployments (or defense-in-depth, if IAM tokens are JWTs
+  with a public JWKS).
+
 ## Tools
 
 Tool names follow the EKS-style `verb_noun` convention and map 1:1 to
