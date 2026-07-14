@@ -802,3 +802,57 @@ async def test_resolve_zone_context_subnet_not_in_vpc(config, client):
         await _resolve_zone_context(
             config, client, DiscoveryCache(), cluster_id="k8s-abc", subnet_id="sub-wrong"
         )
+
+
+# ---------------------------------------------------------------------------
+# list_volume_types: NVME default, SSD supported, AUTO falls back
+# ---------------------------------------------------------------------------
+
+
+def _mock_vt_zones(entries):
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/volume_type_zones").mock(
+        return_value=httpx.Response(200, json={"volumeTypeZones": entries})
+    )
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_volumetype_auto_prefers_nvme(config, client):
+    _mock_iam(respx.mock)
+    _mock_vt_zones([{"id": "vtz-nvme", "name": "NVME"}, {"id": "vtz-ssd", "name": "SSD"}])
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/vtz-nvme/volume_types").mock(
+        return_value=httpx.Response(200, json={"listData": [{"id": "vt-n1", "iops": 3000}]})
+    )
+    result = await _volumetype_list(config, client, DiscoveryCache(), zone="HCM03-1A")
+    assert result.type_name == "NVME"
+    assert [v.id for v in result.volume_types] == ["vt-n1"]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_volumetype_auto_falls_back_to_ssd(config, client):
+    """A zone without NVME serves its SSD tiers instead of an empty list."""
+    _mock_iam(respx.mock)
+    _mock_vt_zones([{"id": "vtz-ssd", "name": "SSD"}])
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/vtz-ssd/volume_types").mock(
+        return_value=httpx.Response(200, json={"listData": [{"id": "vt-s1", "iops": 1000}]})
+    )
+    result = await _volumetype_list(config, client, DiscoveryCache(), zone="HCM03-1A")
+    assert result.type_name == "SSD"
+    assert [v.id for v in result.volume_types] == ["vt-s1"]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_volumetype_explicit_ssd(config, client):
+    """type_name=SSD returns SSD tiers even when NVME exists."""
+    _mock_iam(respx.mock)
+    _mock_vt_zones([{"id": "vtz-nvme", "name": "NVME"}, {"id": "vtz-ssd", "name": "SSD"}])
+    respx.get(f"{VSERVER_BASE}/v1/{PID}/vtz-ssd/volume_types").mock(
+        return_value=httpx.Response(200, json={"listData": [{"id": "vt-s1", "iops": 1000}]})
+    )
+    result = await _volumetype_list(
+        config, client, DiscoveryCache(), zone="HCM03-1A", type_name="SSD"
+    )
+    assert result.type_name == "SSD"
+    assert [v.id for v in result.volume_types] == ["vt-s1"]

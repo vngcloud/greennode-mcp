@@ -56,8 +56,9 @@ Present the discovered options to the user and wait for confirmation before any 
 ## Presenting results
 
 When rendering any resource list or detail to the user (tables, bullet
-lists), ALWAYS include each item's `id` next to its name — follow-up
-commands and confirmations need it. Never drop the id column to save space.
+lists), ALWAYS include each item's `id` and `name` as the FIRST two columns
+(id, name, then everything else) — follow-up commands and confirmations need
+them. Never drop the id column to save space and never truncate id values.
 
 ## Guided prompts
 
