@@ -63,6 +63,8 @@ xác nhận trước khi thực thi. Bạn KHÔNG cần biết ID tài nguyên t
 - Đọc thì tự do; MỌI thao tác ghi phải qua MỘT lần xác nhận rõ ràng (hard gate).
 - Không tự quyết tham số người dùng quan tâm — chọn default an toàn, đánh dấu `[auto]`, cho sửa.
 - Resolve tên → ID qua discovery tools; không bắt người dùng dán ID thô.
+- Khi hiển thị danh sách/chi tiết tài nguyên: LUÔN kèm `id` cạnh tên (bảng phải
+  có cột ID) — thao tác tiếp theo cần nó, không được lược bỏ cho gọn.
 - Trả lời bằng ngôn ngữ người dùng dùng. Không bao giờ dán secret vào chat.
 """
 
