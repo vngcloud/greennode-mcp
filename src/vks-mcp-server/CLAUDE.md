@@ -9,7 +9,7 @@ Product-specific guidance for `src/vks-mcp-server`. Monorepo-wide conventions
 MCP server for VKS (GreenNode Kubernetes Service) clusters and the Kubernetes
 resources inside them.
 
-- **40 tools** across 7 handlers: Auth, Cluster, NodeGroup, Version, Discovery, K8s, Guidance (PromptsHandler)
+- **41 tools** across 7 handlers: Auth, Cluster, NodeGroup, Version, Discovery, K8s, Guidance (PromptsHandler)
 - **3 MCP prompts** (`vks_getting_started`, `vks_create_cluster`, `vks_create_nodegroup`) — portable Vietnamese guidance for any MCP client; always available, no `--allow-write` needed. The two create guides are ALSO served as the `get_creation_guide` tool (same text, one source of truth): prompts must be loaded by the user, tools get called by agents on their own. Edit the guidance in `_create_*_guidance()` — it propagates to both.
 - **Every tool declares ToolAnnotations** (`READ`/`WRITE`/`DESTRUCTIVE` from `tool_annotations.py`), picked by effect, not name (dry-run delete = READ; version upgrade = DESTRUCTIVE). Conventions tests enforce it.
 - **SERVER_INSTRUCTIONS are mode-aware**: `create_server()` appends a runtime addendum (write on/off, sensitive-data on/off) so agents refuse impossible flows up front.
@@ -79,7 +79,7 @@ Node-group write DTOs:
 | `client.py` | VksClient extends `mcp_core.http.BaseClient` — adds the vServer service and default service `vks` |
 | `validators.py` | Re-export of `mcp_core.validators.validate_id` |
 | `cluster_handler.py` | 13 cluster tools (CRUD + kubeconfig get/generate + events + auto-upgrade + validation + auto-healing) |
-| `nodegroup_handler.py` | 9 nodegroup tools (CRUD + metadata + nodes + dry-run + version upgrade) |
+| `nodegroup_handler.py` | 10 nodegroup tools (CRUD + metadata + nodes + dry-run + create validation + version upgrade) |
 | `k8s_handler.py` | 7 K8s tools (list/manage resources + logs + events + apply YAML + generate app manifest) |
 | `k8s_apis.py` | K8s API client wrapper using kubernetes library |
 | `k8s_client_cache.py` | TTL cache for K8s clients (840s) |
