@@ -805,7 +805,7 @@ async def test_resolve_zone_context_subnet_not_in_vpc(config, client):
 
 
 # ---------------------------------------------------------------------------
-# Cache isolation under --vks-auth passthrough (per-identity keys)
+# Cache isolation under token passthrough (per-identity keys)
 # ---------------------------------------------------------------------------
 
 

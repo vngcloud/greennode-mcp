@@ -45,13 +45,7 @@ HTTP-transport / auth variables (all optional):
 
 | Variable | Purpose |
 |----------|---------|
-| `GRN_MCP_API_KEY` | Static bearer token for `--auth-mode api-key` |
-| `GRN_MCP_JWT_ISSUER` | `--auth-mode jwt`: expected `iss` claim — only tokens minted by this identity provider are accepted |
-| `GRN_MCP_JWT_JWKS_URI` | `--auth-mode jwt`: JWKS URL of that issuer — public keys used to verify the JWT signature (rotated automatically via `kid`) |
-| `GRN_MCP_JWT_AUDIENCE` | `--auth-mode jwt`: expected `aud` claim — the token must be issued FOR this server, so a valid token for another service cannot be replayed here |
-| `GRN_MCP_RESOURCE_URL` | `--auth-mode jwt`: this server's public URL, advertised via Protected Resource Metadata (RFC 9728) so MCP clients can discover the authorization server and run the OAuth flow automatically |
 | `GRN_MCP_AUTH_DEBUG` | `1` = redacted inbound-auth diagnostics + `GET /whoami` (never in production) |
-| `GRN_MCP_VKS_AUTH` | Upstream VKS identity: `service-account` (default) or `passthrough` (per-user; HTTP only) |
 
 ## Running
 
@@ -84,58 +78,31 @@ Cursor entry:
 
 ```bash
 uv run vks-mcp-server --transport streamable-http --host 0.0.0.0 --port 8080
-
-# Per-user upstream identity (behind the AgentBase Gateway)
-uv run vks-mcp-server --transport streamable-http --port 8080 --vks-auth passthrough
 ```
 
 `GET /health` is always unauthenticated (liveness/readiness). The Docker image
 serves streamable-http on port 8080.
 
-### Inbound authentication (HTTP transport)
+### Authentication (HTTP transport)
 
-`--auth-mode` selects how clients authenticate to the HTTP endpoint:
+One behavior, no flags — the upstream identity is resolved per request:
 
-- `none` (default) — no auth (use only on a trusted/private network)
-- `api-key` — static Bearer token (`--api-key` / `GRN_MCP_API_KEY`)
-- `jwt` — OAuth 2.1 Resource Server: verifies Bearer JWTs against a JWKS and
-  advertises Protected Resource Metadata. Requires `--jwt-issuer`,
-  `--jwt-jwks-uri`, `--jwt-audience`, `--resource-url` (or the matching
-  `GRN_MCP_JWT_*` / `GRN_MCP_RESOURCE_URL` env vars); optional
-  `--jwt-required-scopes`.
+1. The request carries an IAM bearer token in `Authorization` (the AgentBase
+   Gateway forwards the caller's token) → **every VKS/vServer call runs as
+   that caller**: per-user projects, permissions, and results. A rejected
+   user token is surfaced as an error — never silently retried as the
+   service account. All caches (discovery, kubernetes clients, project_id)
+   are isolated per caller.
+2. No token, but service-account credentials are configured
+   (`~/.greenode` or `GRN_CLIENT_ID`/`GRN_CLIENT_SECRET`) → the shared
+   service account.
+3. Neither → **401** + `WWW-Authenticate`.
 
-Behind the GreenNode MCP Gateway: use `api-key` when the Gateway's outbound auth
-is API Key, or `jwt` when it is OAuth 2.0. `/health` is always unauthenticated.
-### Upstream VKS identity (`--vks-auth`)
-
-Independent of inbound auth, `--vks-auth` selects **whose credentials the
-server uses against the VKS/vServer APIs**:
-
-- `service-account` (default) — the shared IAM credentials from `~/.greenode`;
-  every caller sees the same project and permissions.
-- `passthrough` (HTTP only) — the AgentBase Gateway forwards each caller's IAM
-  bearer token in `Authorization`, and the server uses **that token** for every
-  VKS/vServer call: per-user projects, permissions, and results.
-  - Requests without a token are rejected (401 + `WWW-Authenticate`) — never a
-    silent service-account fallback; a rejected user token is not retried
-    under a different identity.
-  - All caches (discovery, kubernetes clients, project_id) are isolated per
-    caller identity.
-  - Incompatible with `--auth-mode api-key` (both would claim the
-    `Authorization` header) and with stdio transport.
-
-  Recommended deployment behind the AgentBase Gateway:
-
-  ```bash
-  vks-mcp-server --transport streamable-http --vks-auth passthrough --auth-mode none
-  ```
-
-  No `GRN_MCP_JWT_*` configuration is needed in this mode: the server does
-  not verify the token itself — the VKS/vServer APIs are the verifier (an
-  invalid or expired token gets a 401 from the API, surfaced to the agent).
-  `--auth-mode jwt` is a separate, optional inbound-verification layer for
-  non-passthrough deployments (or defense-in-depth, if IAM tokens are JWTs
-  with a public JWKS).
+The server also boots with **no credentials at all** (passthrough-only
+deployments behind the Gateway) — every request then requires a token.
+`GET /health` is always open. The server does not verify tokens itself; the
+VKS/vServer APIs are the verifier (an invalid/expired token gets a 401 from
+the API, surfaced to the agent).
 
 ## Tools
 

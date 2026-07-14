@@ -30,7 +30,7 @@ class K8sClientCache:
 
         Fetches kubeconfig from VKS API on cache miss, creates a
         kubernetes client, and caches it with TTL. Keyed by caller identity
-        too: under --vks-auth passthrough, a client built from user A's
+        too: under token passthrough, a client built from user A's
         kubeconfig must never be served to user B.
         """
         key = (current_identity(), cluster_id)

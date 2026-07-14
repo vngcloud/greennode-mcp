@@ -25,7 +25,7 @@ class DiscoveryCache(_CoreDiscoveryCache):
     """VKS discovery cache: core cache preconfigured with this package's TTLs.
 
     Every key is prefixed with the caller identity (hash of the passthrough
-    user token, or 'service'), so under --vks-auth passthrough one user's
+    user token, or 'service'), so under token passthrough one user's
     cached results can never be served to another.
     """
 
