@@ -579,7 +579,12 @@ class ClusterHandler:
         time: str = Field(..., description="Time of day in HH:mm format, e.g. '03:00'"),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
-        """Configure the auto-upgrade schedule for a VKS cluster.
+        """Set (or change) the weekly auto-upgrade schedule of a VKS cluster.
+
+        Enabling auto-upgrade = calling this with the desired schedule
+        (weekdays + time). Turning it OFF is a separate tool:
+        delete_auto_upgrade. To only READ the current schedule, use
+        get_cluster (auto_upgrade_config) instead.
 
         ## Requirements
         - Server must run with --allow-write
@@ -595,7 +600,10 @@ class ClusterHandler:
         cluster_id: str = Field(..., description="Cluster ID"),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
-        """Delete the auto-upgrade configuration for a VKS cluster.
+        """Turn OFF auto-upgrade for a VKS cluster (delete its schedule).
+
+        The counterpart of configure_auto_upgrade; re-enable any time by
+        configuring a new schedule.
 
         ## Requirements
         - Server must run with --allow-write
@@ -624,7 +632,14 @@ class ClusterHandler:
         ),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
-        """Configure auto-healing for a VKS cluster.
+        """Enable, disable, or tune auto-healing for a VKS cluster.
+
+        This is the ONE tool for every auto-healing change: turn it on
+        (enable_auto_healing=true), turn it off (false), and tune when nodes
+        are remediated — maxUnhealthy (count or percentage, e.g. '2' or
+        '40%'), unhealthyRange (e.g. '[3-5]'), timeoutUnhealthy (minutes,
+        5-180). To only READ the current auto-healing config, use get_cluster
+        instead.
 
         ## Requirements
         - Server must run with --allow-write

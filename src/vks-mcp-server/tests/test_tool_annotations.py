@@ -269,3 +269,23 @@ def test_server_instructions_reflect_runtime_mode():
 
     sens = create_server(allow_write=True, allow_sensitive_data_access=True).instructions
     assert "Secrets" in sens
+
+
+@pytest.mark.asyncio
+async def test_auto_healing_and_upgrade_descriptions_route_intent(all_tools_mcp):
+    """Model-eval finding: 'bật auto-healing cho cluster X' sent 3/6 models to
+    get_cluster first because the one-line description never said this tool
+    both ENABLES and DISABLES healing, nor what it tunes. Descriptions must
+    carry the intent words a router matches on."""
+    tools = {t.name: t for t in await all_tools_mcp.list_tools()}
+
+    heal = tools["configure_auto_healing"].description
+    low = heal.lower()
+    assert "enable" in low and "disable" in low  # both intents route here
+    for param in ("enable_auto_healing", "maxUnhealthy", "unhealthyRange", "timeoutUnhealthy"):
+        assert param in heal, f"{param} missing from configure_auto_healing description"
+    assert "get_cluster" in heal  # where to READ the current config instead
+
+    up = tools["configure_auto_upgrade"].description
+    assert "schedule" in up.lower()  # what it actually sets
+    assert "delete_auto_upgrade" in up  # how to turn it OFF (separate tool)
