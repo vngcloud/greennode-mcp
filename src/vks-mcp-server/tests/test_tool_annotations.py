@@ -26,6 +26,12 @@ from mcp.server.fastmcp import FastMCP
 
 READ_ONLY_PREFIXES = ("list_", "get_", "validate_", "generate_")
 
+# generate_ is normally read-only (generate_app_manifest writes nothing), but
+# generate_kubeconfig MINTS a credential on the API side — a write. Named after
+# the CLI command (generate-kubeconfig), so the exception lives here, not in
+# the tool name.
+EXTRA_WRITE = {"generate_kubeconfig"}
+
 # Write tools that are destructive beyond plain delete_* naming:
 # manage_k8s_resource supports the delete operation; upgrade_nodegroup_version
 # cannot be rolled back (Kubernetes does not downgrade).
@@ -33,6 +39,8 @@ EXTRA_DESTRUCTIVE = {"manage_k8s_resource", "upgrade_nodegroup_version"}
 
 
 def _is_read_only(name: str) -> bool:
+    if name in EXTRA_WRITE:
+        return False
     return name.startswith(READ_ONLY_PREFIXES) or name.endswith("_dryrun")
 
 

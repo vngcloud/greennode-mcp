@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from greennode.vks_mcp_server.client import VksClient
 from greennode.vks_mcp_server.config import Region, VksConfig
+from greennode.vks_mcp_server.kubeconfig import extract_kubeconfig
 from greennode.vks_mcp_server.models import (
     ClusterDetail,
     ClusterListData,
@@ -113,8 +114,8 @@ async def _cluster_get_kubeconfig(
     cluster_id = arguments["cluster_id"]
     validate_id(cluster_id, "cluster_id")
     region = arguments.get("region")
-    yaml_text = await client.get_raw(f"/v1/clusters/{cluster_id}/kubeconfig", region=region)
-    return [types.TextContent(type="text", text=yaml_text)]
+    raw = await client.get_raw(f"/v1/clusters/{cluster_id}/kubeconfig", region=region)
+    return [types.TextContent(type="text", text=extract_kubeconfig(raw))]
 
 
 async def _cluster_get_events(
@@ -169,7 +170,9 @@ async def _cluster_auto_upgrade_config(
         region=region,
         json=body,
     )
-    text = f"Auto-upgrade configuration for cluster `{cluster_id}` updated successfully.\n{data}"
+    text = f"Auto-upgrade configuration for cluster `{cluster_id}` updated successfully."
+    if data:
+        text += f"\n{data}"
     return [types.TextContent(type="text", text=text)]
 
 
@@ -197,9 +200,10 @@ async def _cluster_delete_dryrun(
     region = arguments.get("region")
 
     cluster = await client.get(f"/v1/clusters/{cluster_id}", region=region)
-    ng_data = await client.get(f"/v1/clusters/{cluster_id}/node-groups", region=region)
-
-    node_groups = ng_data.get("items", ng_data) if isinstance(ng_data, dict) else ng_data
+    # Page through: the preview must list EVERY node group that will be deleted.
+    node_groups = await fetch_all_vks_items(
+        client, f"/v1/clusters/{cluster_id}/node-groups", region=region
+    )
 
     cluster_name = cluster.get("name", cluster_id)
     cluster_status = cluster.get("status", "")
@@ -319,6 +323,7 @@ class ClusterHandler:
             self.mcp.tool(name="configure_auto_healing", annotations=WRITE)(
                 self.configure_auto_healing
             )
+            self.mcp.tool(name="generate_kubeconfig", annotations=WRITE)(self.generate_kubeconfig)
 
     async def list_clusters(
         self,
@@ -373,7 +378,8 @@ class ClusterHandler:
                 "CreateClusterComboDto body. Required: name, version, networkType, vpcId. "
                 "Creates the control plane only — add workers afterwards via create_nodegroup "
                 "(the deprecated nodeGroups array is not accepted). Optional: enablePrivateCluster, "
-                "releaseChannel, enabled{LoadBalancer,BlockStoreCsi,ServiceEndpoint}Plugin, "
+                "releaseChannel, enabledLoadBalancerPlugin, enabledBlockStoreCsiPlugin, "
+                "enabledServiceEndpoint (private clusters only, default true), "
                 "azStrategy, description, subnetId, cidr, secondarySubnets, listSubnetIds, "
                 "nodeNetmaskSize, autoUpgradeConfig, autoHealingConfig."
             ),
@@ -423,27 +429,37 @@ class ClusterHandler:
         body: UpdateClusterDto = Field(
             ...,
             description=(
-                "UpdateClusterDto body. Required: version (target Kubernetes version) and "
-                "whitelistNodeCIDRs. Optional plugin toggles: enabledLoadBalancerPlugin, "
-                "enabledBlockStoreCsiPlugin (omit to leave unchanged). Name, description, and "
-                "release channel are NOT editable here."
+                "Partial-update body — send ONLY the fields to change: version "
+                "(target Kubernetes version), whitelistNodeCIDRs, and plugin toggles "
+                "enabledLoadBalancerPlugin / enabledBlockStoreCsiPlugin. At least one "
+                "field required. Name, description, and release channel are NOT "
+                "editable here."
             ),
         ),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
-        """Update a VKS cluster's Kubernetes version, node whitelist CIDRs, and plugins.
+        """Update a VKS cluster: version, node whitelist CIDRs, and/or plugins.
+
+        Partial update — only the fields present in the body are changed.
 
         ## Requirements
         - Server must run with --allow-write
 
         ## Workflow
-        - Use list_cluster_versions to choose a valid target version.
+        - When changing `version`: use list_cluster_versions to pick a valid
+          target first.
         """
+        wire_body = body.model_dump(exclude_none=True)
+        if not wire_body:
+            return (
+                "Nothing to update: the body is empty. Set at least one of version, "
+                "whitelistNodeCIDRs, enabledLoadBalancerPlugin, enabledBlockStoreCsiPlugin."
+            )
         result = await _cluster_update(
             self.client,
             {
                 "cluster_id": cluster_id,
-                "body": body.model_dump(exclude_none=True),
+                "body": wire_body,
                 "region": region,
             },
         )
@@ -475,12 +491,48 @@ class ClusterHandler:
         cluster_id: str = Field(..., description="Cluster ID to get kubeconfig for"),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
-        """Gets the kubeconfig YAML for a VKS cluster. Returns raw YAML text."""
+        """Gets the kubeconfig YAML for a VKS cluster. Returns raw YAML text.
+
+        ## Workflow
+        - A NEW cluster has no kubeconfig until one is generated: call
+          generate_kubeconfig(cluster_id) once, then poll this tool until it
+          returns YAML (generation is asynchronous).
+        """
         result = await _cluster_get_kubeconfig(
             self.client,
             {"cluster_id": cluster_id, "region": region},
         )
         return result[0].text
+
+    async def generate_kubeconfig(
+        self,
+        cluster_id: str = Field(..., description="Cluster ID to generate a kubeconfig for"),
+        expiration_days: int = Field(
+            30, ge=1, le=1825, description="Days until the kubeconfig expires (default 30)"
+        ),
+        region: Region = Field("HCM-3", description="Region override"),
+    ) -> str:
+        """Generate (mint) a kubeconfig for a VKS cluster.
+
+        ## Requirements
+        - Server must run with --allow-write
+
+        ## Workflow
+        - Required once for a NEW cluster before get_cluster_kubeconfig or any
+          Kubernetes tool can work. Generation is asynchronous: after calling
+          this, poll get_cluster_kubeconfig until it returns YAML.
+        """
+        validate_id(cluster_id, "cluster_id")
+        await self.client.post(
+            f"/v1/clusters/{cluster_id}/kubeconfig",
+            region=region,
+            json={"expirationDays": expiration_days},
+        )
+        return (
+            f"Kubeconfig generation requested for cluster `{cluster_id}` "
+            f"(expires in {expiration_days} days). Generation is asynchronous — "
+            "poll get_cluster_kubeconfig until it returns YAML."
+        )
 
     async def get_cluster_events(
         self,
@@ -570,10 +622,13 @@ class ClusterHandler:
         data = await self.client.patch(
             f"/v1/clusters/{cluster_id}/auto-healing-config", region=region, json=body
         )
-        return (
+        text = (
             f"Auto-healing configuration for cluster `{cluster_id}` "
-            f"updated successfully (enabled={enable_auto_healing}).\n{data}"
+            f"updated successfully (enabled={enable_auto_healing})."
         )
+        if data:
+            text += f"\n{data}"
+        return text
 
     async def delete_cluster_dryrun(
         self,
