@@ -99,7 +99,7 @@ Prefer these tools over raw `kubectl` — they fetch and cache the cluster's kub
 - list_api_versions: List API versions
 - generate_app_manifest: Generate a deployment manifest for an app
 - manage_k8s_resource: CRUD single K8s resource (requires --allow-write for write ops, --allow-sensitive-data-access for Secrets)
-- apply_yaml: Apply YAML manifest file (requires --allow-write)
+- apply_yaml: Apply YAML manifest content (pass the YAML itself, not a file path; requires --allow-write)
 """
 
 mcp = None
