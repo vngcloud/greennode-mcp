@@ -391,7 +391,8 @@ class K8sHandler:
                 previous=previous,
             )
 
-            log_lines = logs.splitlines(keepends=False)
+            # A pod with no logs yet (Pending / container not started) yields None.
+            log_lines = (logs or "").splitlines(keepends=False)
             if log_lines and log_lines[-1].endswith("\n"):
                 log_lines.append("")
 
