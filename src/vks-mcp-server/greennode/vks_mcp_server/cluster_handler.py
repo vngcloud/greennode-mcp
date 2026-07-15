@@ -540,10 +540,7 @@ class ClusterHandler:
             30,
             ge=1,
             le=1825,
-            description=(
-                "Days until the kubeconfig expires (1-1825). ASK the user for "
-                "this — suggest 30 as the default, do not pick silently."
-            ),
+            description="Days until the kubeconfig expires (1-1825; a user decision)",
         ),
         region: Region = Field("HCM-3", description="Region override"),
     ) -> str:
@@ -553,9 +550,6 @@ class ClusterHandler:
         - Server must run with --allow-write
 
         ## Workflow
-        - ASK the user how long the kubeconfig should live (expiration_days;
-          suggest 30, max 1825) — this is a credential-lifetime decision, do
-          NOT silently accept the default.
         - Required once for a NEW cluster before get_cluster_kubeconfig or any
           Kubernetes tool can work. Generation is asynchronous: after calling
           this, poll get_cluster_kubeconfig until it returns YAML.
