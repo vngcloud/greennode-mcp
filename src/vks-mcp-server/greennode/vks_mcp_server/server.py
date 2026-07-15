@@ -50,7 +50,7 @@ Create a cluster: get_quota -> list_vpcs (vpcId) -> list_cluster_versions -> val
 
 Add a node group: get_cluster (vpcId + region) -> get_quota -> list_subnets (user picks a subnetId; its zone scopes the next two) -> list_flavors(cluster_id, subnet_id) (flavorId) -> list_volume_types(cluster_id, subnet_id) (IOPS tier id = diskType) -> list_ssh_keys (sshKeyId) -> validate_nodegroup_create -> create_nodegroup -> poll get_nodegroup.
 
-Present the discovered options to the user and wait for confirmation before any write call.
+Present the discovered options to the user and wait for confirmation before any write call. Never silently accept a default for a parameter that encodes a user decision (credential lifetimes, sizes, security toggles, resource choices) — ask.
 
 ## Presenting results
 
