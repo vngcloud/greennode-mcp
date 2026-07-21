@@ -613,8 +613,10 @@ def _valid_ng_body(**over):
         "diskSize": 100,
         "numNodes": 2,
         "sshKeyId": "ssh-ok",
+        # sub-ok carries secondary subnets — a node group requires a subnet
+        # that has them, mirrored verbatim into secondarySubnets.
         "subnetId": "sub-ok",
-        "secondarySubnets": [],
+        "secondarySubnets": ["10.200.0.0/22"],
     }
     body.update(over)
     return CreateNodeGroupDto(**body)
@@ -635,6 +637,7 @@ def _mock_validation_chain(respx_mock):
                         "name": "s1",
                         "status": "ACTIVE",
                         "zone": {"uuid": "HCM03-1A", "name": "1A"},
+                        "secondarySubnets": [{"cidr": "10.200.0.0/22"}],
                     },
                     {
                         "uuid": "sub-sec",
@@ -643,8 +646,14 @@ def _mock_validation_chain(respx_mock):
                         "zone": {"uuid": "HCM03-1A", "name": "1A"},
                         "secondarySubnets": [{"cidr": "10.5.60.0/22"}],
                     },
+                    {
+                        "uuid": "sub-bare",
+                        "name": "s3",
+                        "status": "ACTIVE",
+                        "zone": {"uuid": "HCM03-1A", "name": "1A"},
+                    },
                 ],
-                "totalItem": 2,
+                "totalItem": 3,
             },
         )
     )
@@ -766,10 +775,27 @@ async def test_validate_nodegroup_secondary_subnets_must_mirror_subnet(
     _mock_iam(respx_mock)
     _mock_validation_chain(respx_mock)
     result = await validate_handler.validate_nodegroup_create(
-        cluster_id="k8s-abc", body=_valid_ng_body(subnetId="sub-sec")
+        cluster_id="k8s-abc", body=_valid_ng_body(subnetId="sub-sec", secondarySubnets=[])
     )
     assert result != "valid"
     assert "secondarySubnets" in result and "10.5.60.0/22" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_rejects_subnet_without_secondary_subnets(
+    validate_handler, respx_mock
+):
+    """A subnet with NO secondary subnets cannot host a node group — the
+    validator must say so and point at list_subnets (not report a mirror
+    mismatch against [])."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-abc", body=_valid_ng_body(subnetId="sub-bare", secondarySubnets=[])
+    )
+    assert result != "valid"
+    assert "has no secondary subnets" in result and "list_subnets" in result
 
 
 @respx.mock

@@ -158,14 +158,16 @@ def _create_nodegroup_guidance(cluster_id: str | None) -> str:
       numNodes: gợi ý `1` (0–10; prod/HA gợi ý 3).
    b. Public/private: `enablePrivateNodes` (mặc định false → node có IP public).
    c. os: `ubuntu` (mặc định; hoặc `linux`, `rocky`).
-   d. `list_subnets vpc_id=<vpcId>` → user chọn → `subnetId` (zone của subnet quyết
-      định flavor và volume type — hai tool dưới tự suy ra). MỌI subnet ACTIVE
-      thuộc VPC của cluster đều hợp lệ — KHÔNG cần trùng subnet/zone mà cluster
-      đang dùng (kể cả cluster MULTI-AZ). VPC chỉ có đúng 1 subnet ACTIVE →
-      `[auto]`; nhiều hơn → bắt buộc hỏi.
+   d. `list_subnets vpc_id=<vpcId>` → CHỈ trình các subnet ACTIVE CÓ
+      `secondary_subnets` (node group bắt buộc subnet có secondary subnet;
+      không subnet nào đạt → dừng, hướng dẫn user thêm secondary subnet cho
+      subnet trên console rồi `list_subnets refresh=true`).
+      KHÔNG cần trùng subnet/zone mà cluster đang dùng (kể cả MULTI-AZ). Đúng 1 subnet
+      đạt → `[auto]`; nhiều hơn → bắt buộc hỏi → `subnetId` (zone của subnet
+      quyết định flavor và volume type — hai tool dưới tự suy ra).
       `secondarySubnets` `[auto]`, KHÔNG hỏi: copy nguyên field
-      `secondary_subnets` (CIDR) của subnet vừa chọn — `[]` nếu subnet không có;
-      vẫn hiển thị giá trị trong plan xác nhận.
+      `secondary_subnets` (CIDR) của subnet vừa chọn; vẫn hiển thị giá trị
+      trong plan xác nhận.
    e. Tuỳ chọn: `securityGroups` (id từ `list_security_groups`).
    f. `list_flavors cluster_id=<id> subnet_id=<subnetId>` (lọc `need` nếu rõ nhu cầu)
       → user chọn → `flavorId`; gợi ý flavor nhỏ nhất theo vCPU/RAM (dev/test).

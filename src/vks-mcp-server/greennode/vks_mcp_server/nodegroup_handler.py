@@ -161,10 +161,10 @@ class NodeGroupHandler:
 
         Local rules (name 5-15 chars: lowercase + digits + hyphens, letter/digit
         at both ends; autoscale bounds) plus cross-checks against live discovery
-        (cached): the subnet belongs to the cluster's VPC — the ONLY subnet
-        requirement; it does NOT need to be one of the cluster's own
-        subnets or zones — secondarySubnets equals the chosen subnet's
-        `secondary_subnets` CIDRs verbatim, flavorId and diskType
+        (cached): the subnet belongs to the cluster's VPC and HAS secondary
+        subnets (it does NOT need to be one of the cluster's own subnets or
+        zones) — secondarySubnets equals the chosen subnet's
+        `secondary_subnets` CIDRs verbatim (non-empty), flavorId and diskType
         exist in the subnet's availability zone, sshKeyId and securityGroups
         exist in the cluster's region. Returns "valid" or every problem found,
         each with the discovery tool that fixes it.
@@ -208,10 +208,18 @@ class NodeGroupHandler:
 
         # secondarySubnets must mirror the chosen subnet's secondary_subnets CIDRs
         # verbatim (both calls are cache hits — _resolve_zone_context just fetched).
+        # A subnet WITHOUT secondary subnets cannot host a node group at all.
         _, vpc_id = await _locate_cluster(self.config, self.client, self.cache, cluster_id)
         subnets = await _subnet_list(self.config, self.client, self.cache, vpc_id, region)
         chosen = next(s for s in subnets.subnets if s.id == body.subnetId)
-        if sorted(body.secondarySubnets) != sorted(chosen.secondary_subnets):
+        if not chosen.secondary_subnets:
+            errors.append(
+                f"subnetId: subnet '{body.subnetId}' has no secondary subnets — a node "
+                "group requires a subnet that has them. Pick a subnet with a non-empty "
+                "`secondary_subnets` via list_subnets, or add a secondary subnet to "
+                "this one in the console first (then list_subnets refresh=true)"
+            )
+        elif sorted(body.secondarySubnets) != sorted(chosen.secondary_subnets):
             errors.append(
                 f"secondarySubnets: must be exactly the `secondary_subnets` CIDRs of "
                 f"the chosen subnet '{body.subnetId}' — expected "
@@ -314,9 +322,10 @@ class NodeGroupHandler:
             ...,
             description=(
                 "CreateNodeGroupDto body. Required: name, flavorId, diskType, sshKeyId, "
-                "diskSize (20-5000), numNodes (0-10), subnetId, secondarySubnets (the "
-                "chosen subnet's secondary_subnets CIDRs, copied verbatim from "
-                "list_subnets — [] when it has none). Optional groups — offer "
+                "diskSize (20-5000), numNodes (0-10), subnetId (must be a subnet that "
+                "HAS secondary subnets), secondarySubnets (that subnet's "
+                "secondary_subnets CIDRs, copied verbatim from list_subnets — "
+                "non-empty). Optional groups — offer "
                 "each to the user (see the tool's Workflow): os (ubuntu|linux|rocky, "
                 "default ubuntu) and upgradeConfig; networking/security "
                 "(enablePrivateNodes, enabledEncryptionVolume, securityGroups); "

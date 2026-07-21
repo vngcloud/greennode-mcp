@@ -558,7 +558,8 @@ class DiscoveryHandler:
         - The chosen subnet's `zone.uuid` scopes the next steps: pass it to
           list_flavors and list_volume_types (flavors/disk types differ per zone).
         - Use the chosen `id` as `subnetId`; for create_nodegroup, copy its
-          `secondary_subnets` verbatim as the required `secondarySubnets`.
+          `secondary_subnets` verbatim as the required `secondarySubnets` —
+          a subnet with an empty `secondary_subnets` cannot host a node group.
         """
         return await _subnet_list(
             self.config, self.client, self.cache, vpc_id=vpc_id, region=region, refresh=refresh

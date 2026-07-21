@@ -504,7 +504,8 @@ class SubnetItem(BaseModel):
         description=(
             "Secondary subnet CIDRs (e.g. '10.5.60.0/22') — when this subnet is "
             "picked as a node group's subnetId, pass this list verbatim as the "
-            "node group's `secondarySubnets` (the API takes CIDRs, not sec-sub ids)"
+            "node group's `secondarySubnets` (the API takes CIDRs, not sec-sub ids). "
+            "Empty ⇒ this subnet cannot host a node group"
         ),
     )
 
@@ -894,8 +895,9 @@ class NodeGroupSpec(BaseModel):
         ...,
         description=(
             "The `secondary_subnets` CIDRs of the chosen subnetId, copied verbatim "
-            "from that subnet's list_subnets entry (e.g. ['10.5.60.0/22']; [] when "
-            "the subnet has none) — CIDR strings, NOT sec-sub ids"
+            "from that subnet's list_subnets entry (e.g. ['10.5.60.0/22']) — CIDR "
+            "strings, NOT sec-sub ids. Non-empty: a node group requires a subnet "
+            "that HAS secondary subnets"
         ),
     )
     labels: Optional[dict[str, str]] = Field(None, description="Node labels")
