@@ -623,9 +623,18 @@ def _valid_ng_body(**over):
 
 
 def _mock_validation_chain(respx_mock):
-    """Cluster + full zone-scoped discovery chain, all healthy."""
+    """Clusters (native-routing + overlay) + full zone-scoped discovery chain."""
     respx_mock.get(f"{VKS_BASE}/v1/clusters/k8s-abc").mock(
-        return_value=httpx.Response(200, json={"uid": "k8s-abc", "vpcId": "net-1"})
+        return_value=httpx.Response(
+            200,
+            json={"uid": "k8s-abc", "vpcId": "net-1", "networkType": "CILIUM_NATIVE_ROUTING"},
+        )
+    )
+    respx_mock.get(f"{VKS_BASE}/v1/clusters/k8s-ovl").mock(
+        return_value=httpx.Response(
+            200,
+            json={"uid": "k8s-ovl", "vpcId": "net-1", "networkType": "CILIUM_OVERLAY"},
+        )
     )
     respx_mock.get(f"{VS_BASE}/v2/{_PID}/networks/net-1/subnets").mock(
         return_value=httpx.Response(
@@ -786,9 +795,9 @@ async def test_validate_nodegroup_secondary_subnets_must_mirror_subnet(
 async def test_validate_nodegroup_rejects_subnet_without_secondary_subnets(
     validate_handler, respx_mock
 ):
-    """A subnet with NO secondary subnets cannot host a node group — the
-    validator must say so and point at list_subnets (not report a mirror
-    mismatch against [])."""
+    """CILIUM_NATIVE_ROUTING: a subnet with NO secondary subnets cannot host a
+    node group — the validator must say so and point at list_subnets (not
+    report a mirror mismatch against [])."""
     _mock_iam(respx_mock)
     _mock_validation_chain(respx_mock)
     result = await validate_handler.validate_nodegroup_create(
@@ -796,6 +805,28 @@ async def test_validate_nodegroup_rejects_subnet_without_secondary_subnets(
     )
     assert result != "valid"
     assert "has no secondary subnets" in result and "list_subnets" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_overlay_cluster_requires_empty_secondary_subnets(
+    validate_handler, respx_mock
+):
+    """secondarySubnets only apply to CILIUM_NATIVE_ROUTING — an overlay
+    cluster's node group must send [], and any subnet is eligible."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    # non-empty on an overlay cluster → error naming the networkType
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-ovl", body=_valid_ng_body()
+    )
+    assert result != "valid"
+    assert "secondarySubnets" in result and "CILIUM_OVERLAY" in result
+    # [] is valid — even on a subnet without secondaries
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-ovl", body=_valid_ng_body(subnetId="sub-bare", secondarySubnets=[])
+    )
+    assert result == "valid"
 
 
 @respx.mock

@@ -39,8 +39,9 @@ xác nhận trước khi thực thi. Bạn KHÔNG cần biết ID tài nguyên t
 - Tên node group: 5–15 ký tự, cùng quy tắc.
 - Network type (3 loại): `CILIUM_OVERLAY` và `TIGERA` cần `cidr` (vd `10.96.0.0/16`).
   Default an toàn cho người mới: `CILIUM_OVERLAY` + cidr.
-- `secondarySubnets` KHÔNG set ở cluster — mỗi node group tự set khi tạo: copy
-  nguyên field `secondary_subnets` (CIDR, không phải id) của subnet đã chọn.
+- `secondarySubnets` KHÔNG set ở cluster — chỉ dùng cho node group của cụm
+  `CILIUM_NATIVE_ROUTING`, tự set khi tạo: copy nguyên field `secondary_subnets`
+  (CIDR, không phải id) của subnet đã chọn; cụm networkType khác → `[]`.
 
 ## Tác vụ nào → tool nào
 - Tạo cluster: xem prompt `vks_create_cluster` (discovery + `validate_cluster_create`
@@ -158,16 +159,17 @@ def _create_nodegroup_guidance(cluster_id: str | None) -> str:
       numNodes: gợi ý `1` (0–10; prod/HA gợi ý 3).
    b. Public/private: `enablePrivateNodes` (mặc định false → node có IP public).
    c. os: `ubuntu` (mặc định; hoặc `linux`, `rocky`).
-   d. `list_subnets vpc_id=<vpcId>` → CHỈ trình các subnet ACTIVE CÓ
-      `secondary_subnets` (node group bắt buộc subnet có secondary subnet;
-      không subnet nào đạt → dừng, hướng dẫn user thêm secondary subnet cho
-      subnet trên console rồi `list_subnets refresh=true`).
+   d. `list_subnets vpc_id=<vpcId>` → cluster `CILIUM_NATIVE_ROUTING` (xem
+      networkType từ get_cluster ở bước 3): CHỈ trình các subnet ACTIVE CÓ
+      `secondary_subnets` (không subnet nào đạt → dừng, hướng dẫn user thêm
+      secondary subnet cho subnet trên console rồi `list_subnets refresh=true`);
+      networkType khác: mọi subnet ACTIVE đều hợp lệ.
       KHÔNG cần trùng subnet/zone mà cluster đang dùng (kể cả MULTI-AZ). Đúng 1 subnet
       đạt → `[auto]`; nhiều hơn → bắt buộc hỏi → `subnetId` (zone của subnet
       quyết định flavor và volume type — hai tool dưới tự suy ra).
-      `secondarySubnets` `[auto]`, KHÔNG hỏi: copy nguyên field
-      `secondary_subnets` (CIDR) của subnet vừa chọn; vẫn hiển thị giá trị
-      trong plan xác nhận.
+      `secondarySubnets` `[auto]`, KHÔNG hỏi: cluster `CILIUM_NATIVE_ROUTING` →
+      copy nguyên field `secondary_subnets` (CIDR) của subnet vừa chọn;
+      networkType khác → `[]`; vẫn hiển thị giá trị trong plan xác nhận.
    e. Tuỳ chọn: `securityGroups` (id từ `list_security_groups`).
    f. `list_flavors cluster_id=<id> subnet_id=<subnetId>` (lọc `need` nếu rõ nhu cầu)
       → user chọn → `flavorId`; gợi ý flavor nhỏ nhất theo vCPU/RAM (dev/test).
