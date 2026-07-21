@@ -128,6 +128,19 @@ async def test_nodegroup_create_body_requires_subnet_and_secondary_subnets(confi
 
 
 @pytest.mark.asyncio
+async def test_delete_nodegroup_force_delete_is_required(config, client):
+    """force_delete (= skip draining the nodes) has NO default: drain-or-not
+    is a user decision, and a default is an escape hatch agents silently take."""
+    schema = await _schema_for(
+        lambda mcp: NodeGroupHandler(mcp, config, client, allow_write=True),
+        "delete_nodegroup",
+    )
+    assert "force_delete" in schema["required"]
+    assert "default" not in schema["properties"]["force_delete"]
+    assert "drain" in schema["properties"]["force_delete"]["description"]
+
+
+@pytest.mark.asyncio
 async def test_nodegroup_list_nodes_has_no_paging_params(config, client):
     """list_nodes fetches every page itself — agents never paginate."""
     schema = await _schema_for(

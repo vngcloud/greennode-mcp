@@ -456,11 +456,12 @@ class NodeGroupHandler:
         cluster_id: str = Field(..., description="VKS Cluster ID"),
         nodegroup_id: str = Field(..., description="Node Group ID to delete. IRREVERSIBLE."),
         force_delete: bool = Field(
-            False,
+            ...,
             description=(
-                "Force the deletion on the API side (forceDelete=true). Use ONLY "
-                "as an escalation after a normal delete failed or the node group "
-                "is stuck (e.g. ERROR state) — and confirm with the user first."
+                "Whether to SKIP draining the nodes before deletion. "
+                "false = drain first (pods are evicted gracefully); true = delete "
+                "without draining (pods are killed immediately — for stuck/ERROR "
+                "node groups). A user decision — ask the user; never pick for them."
             ),
         ),
         region: Region = Field("HCM-3", description="Region override"),
@@ -472,8 +473,8 @@ class NodeGroupHandler:
 
         ## Workflow
         - Call delete_nodegroup_dryrun first to preview what will be removed.
-        - If a normal delete fails or the node group is stuck, ask the user
-          before retrying with force_delete=true.
+        - Ask the user whether to drain the nodes before deletion
+          (force_delete=false) or skip the drain (force_delete=true).
         """
         validate_id(cluster_id, "cluster_id")
         validate_id(nodegroup_id, "nodegroup_id")

@@ -139,7 +139,7 @@ greennode-cli command names (`list-clusters` ↔ `list_clusters`).
 | `create_nodegroup` | **write** | Create a node group (full CLI parity: os, labels/taints/tags, autoscale, placement, encryption, private subnet) |
 | `update_nodegroup` | **write** | Update numNodes / securityGroups / autoScaleConfig / upgradeConfig |
 | `update_nodegroup_metadata` | **write** | Update labels, tags, taints (`PATCH .../metadata`) |
-| `delete_nodegroup` | **write** | Delete a node group (IRREVERSIBLE; dry-run first; `force_delete` as escalation) |
+| `delete_nodegroup` | **write** | Delete a node group (IRREVERSIBLE; dry-run first; `force_delete` required — true = skip draining the nodes, a user decision) |
 | `upgrade_nodegroup_version` | **write** | Upgrade a node group's Kubernetes version |
 
 ### Discovery (8) — resolve names → IDs for create bodies
