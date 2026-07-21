@@ -162,10 +162,10 @@ class NodeGroupHandler:
         Local rules (name 5-15 chars: lowercase + digits + hyphens, letter/digit
         at both ends; autoscale bounds) plus cross-checks against live discovery
         (cached): the subnet belongs to the cluster's VPC (it does NOT need to
-        be one of the cluster's own subnets or zones) — secondarySubnets
-        follows the cluster's networkType (CILIUM_NATIVE_ROUTING: the chosen
-        subnet's `secondary_subnets` CIDRs verbatim, non-empty; otherwise []),
-        flavorId and diskType
+        be one of the cluster's own subnets or zones) — on a
+        CILIUM_NATIVE_ROUTING cluster secondarySubnets must be the chosen
+        subnet's `secondary_subnets` CIDRs verbatim (non-empty; other
+        networkTypes don't use the field), flavorId and diskType
         exist in the subnet's availability zone, sshKeyId and securityGroups
         exist in the cluster's region. Returns "valid" or every problem found,
         each with the discovery tool that fixes it.
@@ -207,16 +207,16 @@ class NodeGroupHandler:
             errors.append(str(exc))
             return self._validation_report(errors)
 
-        # secondarySubnets are a CILIUM_NATIVE_ROUTING concern: those clusters
-        # need a subnet WITH secondary subnets, mirrored verbatim into the body;
-        # any other networkType must send []. (Both calls are cache hits —
-        # _resolve_zone_context just fetched.)
+        # secondarySubnets are a CILIUM_NATIVE_ROUTING concern only: those
+        # clusters need a subnet WITH secondary subnets, mirrored verbatim into
+        # the body; other networkTypes don't use the field at all. (Both calls
+        # are cache hits — _resolve_zone_context just fetched.)
         _, vpc_id, network_type = await _locate_cluster(
             self.config, self.client, self.cache, cluster_id
         )
-        subnets = await _subnet_list(self.config, self.client, self.cache, vpc_id, region)
-        chosen = next(s for s in subnets.subnets if s.id == body.subnetId)
         if network_type == "CILIUM_NATIVE_ROUTING":
+            subnets = await _subnet_list(self.config, self.client, self.cache, vpc_id, region)
+            chosen = next(s for s in subnets.subnets if s.id == body.subnetId)
             if not chosen.secondary_subnets:
                 errors.append(
                     f"subnetId: subnet '{body.subnetId}' has no secondary subnets — a "
@@ -225,18 +225,14 @@ class NodeGroupHandler:
                     "via list_subnets, or add a secondary subnet to this one in the "
                     "console first (then list_subnets refresh=true)"
                 )
-            elif sorted(body.secondarySubnets) != sorted(chosen.secondary_subnets):
+            elif sorted(body.secondarySubnets or []) != sorted(chosen.secondary_subnets):
                 errors.append(
-                    f"secondarySubnets: must be exactly the `secondary_subnets` CIDRs "
-                    f"of the chosen subnet '{body.subnetId}' — expected "
-                    f"{chosen.secondary_subnets}, got {body.secondarySubnets} "
-                    "(copy the list from list_subnets verbatim)"
+                    f"secondarySubnets: required for a CILIUM_NATIVE_ROUTING cluster — "
+                    f"must be exactly the `secondary_subnets` CIDRs of the chosen "
+                    f"subnet '{body.subnetId}': expected {chosen.secondary_subnets}, "
+                    f"got {body.secondarySubnets} (copy the list from list_subnets "
+                    "verbatim)"
                 )
-        elif body.secondarySubnets:
-            errors.append(
-                f"secondarySubnets: only apply to CILIUM_NATIVE_ROUTING clusters — "
-                f"this cluster's networkType is '{network_type or 'unknown'}'; pass []"
-            )
 
         flavors = await _flavor_list(
             self.config, self.client, self.cache, zone=zone, region=region
@@ -333,10 +329,11 @@ class NodeGroupHandler:
             ...,
             description=(
                 "CreateNodeGroupDto body. Required: name, flavorId, diskType, sshKeyId, "
-                "diskSize (20-5000), numNodes (0-10), subnetId, secondarySubnets "
-                "(CILIUM_NATIVE_ROUTING cluster: the chosen subnet's secondary_subnets "
-                "CIDRs copied verbatim from list_subnets, non-empty — the subnet must "
-                "have them; other networkTypes: []). Optional groups — offer "
+                "diskSize (20-5000), numNodes (0-10), subnetId — plus, on a "
+                "CILIUM_NATIVE_ROUTING cluster only, secondarySubnets (the chosen "
+                "subnet's secondary_subnets CIDRs copied verbatim from list_subnets, "
+                "non-empty — the subnet must have them; omit for other networkTypes). "
+                "Optional groups — offer "
                 "each to the user (see the tool's Workflow): os (ubuntu|linux|rocky, "
                 "default ubuntu) and upgradeConfig; networking/security "
                 "(enablePrivateNodes, enabledEncryptionVolume, securityGroups); "

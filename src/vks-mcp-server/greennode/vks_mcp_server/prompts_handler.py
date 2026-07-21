@@ -41,7 +41,8 @@ xác nhận trước khi thực thi. Bạn KHÔNG cần biết ID tài nguyên t
   Default an toàn cho người mới: `CILIUM_OVERLAY` + cidr.
 - `secondarySubnets` KHÔNG set ở cluster — chỉ dùng cho node group của cụm
   `CILIUM_NATIVE_ROUTING`, tự set khi tạo: copy nguyên field `secondary_subnets`
-  (CIDR, không phải id) của subnet đã chọn; cụm networkType khác → `[]`.
+  (CIDR, không phải id) của subnet đã chọn; cụm networkType khác không dùng
+  field này (bỏ qua, không truyền).
 
 ## Tác vụ nào → tool nào
 - Tạo cluster: xem prompt `vks_create_cluster` (discovery + `validate_cluster_create`
@@ -168,8 +169,9 @@ def _create_nodegroup_guidance(cluster_id: str | None) -> str:
       đạt → `[auto]`; nhiều hơn → bắt buộc hỏi → `subnetId` (zone của subnet
       quyết định flavor và volume type — hai tool dưới tự suy ra).
       `secondarySubnets` `[auto]`, KHÔNG hỏi: cluster `CILIUM_NATIVE_ROUTING` →
-      copy nguyên field `secondary_subnets` (CIDR) của subnet vừa chọn;
-      networkType khác → `[]`; vẫn hiển thị giá trị trong plan xác nhận.
+      copy nguyên field `secondary_subnets` (CIDR) của subnet vừa chọn, hiển thị
+      giá trị trong plan xác nhận; networkType khác → BỎ QUA field này (không
+      truyền, không đưa vào plan).
    e. Tuỳ chọn: `securityGroups` (id từ `list_security_groups`).
    f. `list_flavors cluster_id=<id> subnet_id=<subnetId>` (lọc `need` nếu rõ nhu cầu)
       → user chọn → `flavorId`; gợi ý flavor nhỏ nhất theo vCPU/RAM (dev/test).

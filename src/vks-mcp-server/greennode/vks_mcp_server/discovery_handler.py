@@ -563,7 +563,7 @@ class DiscoveryHandler:
         - Use the chosen `id` as `subnetId`; for create_nodegroup in a
           CILIUM_NATIVE_ROUTING cluster, copy its `secondary_subnets` verbatim
           as `secondarySubnets` (empty ⇒ that subnet cannot host the node
-          group); other networkTypes pass [].
+          group); other networkTypes omit the field.
         """
         return await _subnet_list(
             self.config, self.client, self.cache, vpc_id=vpc_id, region=region, refresh=refresh

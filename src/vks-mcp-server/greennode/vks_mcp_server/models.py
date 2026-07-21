@@ -506,7 +506,7 @@ class SubnetItem(BaseModel):
             "CILIUM_NATIVE_ROUTING cluster, pass this list verbatim as the node "
             "group's `secondarySubnets` (the API takes CIDRs, not sec-sub ids; "
             "empty ⇒ this subnet cannot host that cluster's node groups). Other "
-            "networkTypes ignore it (node groups send [])"
+            "networkTypes don't use it (omit the field)"
         ),
     )
 
@@ -892,13 +892,14 @@ class NodeGroupSpec(BaseModel):
     subnetId: str = Field(
         ..., description="Subnet ID the nodes join (from list_subnets; the user's choice)"
     )
-    secondarySubnets: list[str] = Field(
-        ...,
+    secondarySubnets: Optional[list[str]] = Field(
+        None,
         description=(
-            "CILIUM_NATIVE_ROUTING clusters: the `secondary_subnets` CIDRs of the "
-            "chosen subnetId, copied verbatim from that subnet's list_subnets entry "
-            "(e.g. ['10.5.60.0/22'], non-empty — the subnet must HAVE secondary "
-            "subnets; CIDR strings, NOT sec-sub ids). Any other networkType: []"
+            "CILIUM_NATIVE_ROUTING clusters ONLY — there it is required: the "
+            "`secondary_subnets` CIDRs of the chosen subnetId, copied verbatim from "
+            "that subnet's list_subnets entry (e.g. ['10.5.60.0/22'], non-empty — "
+            "the subnet must HAVE secondary subnets; CIDR strings, NOT sec-sub "
+            "ids). Omit for any other networkType"
         ),
     )
     labels: Optional[dict[str, str]] = Field(None, description="Node labels")

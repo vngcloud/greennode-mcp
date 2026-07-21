@@ -809,24 +809,35 @@ async def test_validate_nodegroup_rejects_subnet_without_secondary_subnets(
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_validate_nodegroup_overlay_cluster_requires_empty_secondary_subnets(
+async def test_validate_nodegroup_overlay_cluster_ignores_secondary_subnets(
     validate_handler, respx_mock
 ):
-    """secondarySubnets only apply to CILIUM_NATIVE_ROUTING — an overlay
-    cluster's node group must send [], and any subnet is eligible."""
+    """secondarySubnets only apply to CILIUM_NATIVE_ROUTING — on any other
+    networkType the field is simply not used: omitting it is valid on any
+    ACTIVE subnet of the VPC (even one without secondaries)."""
     _mock_iam(respx_mock)
     _mock_validation_chain(respx_mock)
-    # non-empty on an overlay cluster → error naming the networkType
     result = await validate_handler.validate_nodegroup_create(
-        cluster_id="k8s-ovl", body=_valid_ng_body()
-    )
-    assert result != "valid"
-    assert "secondarySubnets" in result and "CILIUM_OVERLAY" in result
-    # [] is valid — even on a subnet without secondaries
-    result = await validate_handler.validate_nodegroup_create(
-        cluster_id="k8s-ovl", body=_valid_ng_body(subnetId="sub-bare", secondarySubnets=[])
+        cluster_id="k8s-ovl", body=_valid_ng_body(subnetId="sub-bare", secondarySubnets=None)
     )
     assert result == "valid"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_native_routing_requires_secondary_subnets(
+    validate_handler, respx_mock
+):
+    """Omitting secondarySubnets on a CILIUM_NATIVE_ROUTING cluster is an
+    error that names the requirement and the expected CIDRs."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-abc", body=_valid_ng_body(secondarySubnets=None)
+    )
+    assert result != "valid"
+    assert "required for a CILIUM_NATIVE_ROUTING cluster" in result
+    assert "10.200.0.0/22" in result
 
 
 @respx.mock

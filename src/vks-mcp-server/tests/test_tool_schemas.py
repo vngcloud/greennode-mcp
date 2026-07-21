@@ -114,9 +114,10 @@ async def test_cluster_create_body_lists_valid_values(config, client):
 
 
 @pytest.mark.asyncio
-async def test_nodegroup_create_body_requires_subnet_and_secondary_subnets(config, client):
-    """subnetId + secondarySubnets are required in the node-group DTO — the
-    schema forces the subnet choice and its verbatim secondary CIDRs."""
+async def test_nodegroup_create_body_requires_subnet_id(config, client):
+    """subnetId is required in the node-group DTO; secondarySubnets stays
+    optional at the schema level (CILIUM_NATIVE_ROUTING-only — enforced by
+    validate_nodegroup_create, since JSON Schema can't require-if)."""
     schema = await _schema_for(
         lambda mcp: NodeGroupHandler(mcp, config, client, allow_write=True),
         "create_nodegroup",
@@ -124,7 +125,7 @@ async def test_nodegroup_create_body_requires_subnet_and_secondary_subnets(confi
     dto_def = schema.get("$defs", {})["CreateNodeGroupDto"]
     required = dto_def["required"]
     assert "subnetId" in required
-    assert "secondarySubnets" in required
+    assert "secondarySubnets" not in required
 
 
 @pytest.mark.asyncio

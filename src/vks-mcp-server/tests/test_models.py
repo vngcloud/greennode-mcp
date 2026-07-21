@@ -366,9 +366,10 @@ def test_nodegroup_spec_os_supports_rocky():
         )
 
 
-def test_nodegroup_spec_requires_subnet_and_secondary_subnets():
-    """subnetId + secondarySubnets are required: the schema forces the subnet
-    choice and its verbatim secondary CIDRs (no silent omission)."""
+def test_nodegroup_spec_requires_subnet_id():
+    """subnetId is required; secondarySubnets is optional at the schema level
+    (only CILIUM_NATIVE_ROUTING clusters use it — the validator enforces that)
+    and stays off the wire when omitted."""
     with pytest.raises(ValidationError, match="subnetId"):
         NodeGroupSpec(
             name="ng",
@@ -377,18 +378,17 @@ def test_nodegroup_spec_requires_subnet_and_secondary_subnets():
             diskType="SSD",
             numNodes=1,
             sshKeyId="k",
-            secondarySubnets=[],
         )
-    with pytest.raises(ValidationError, match="secondarySubnets"):
-        NodeGroupSpec(
-            name="ng",
-            flavorId="f",
-            diskSize=100,
-            diskType="SSD",
-            numNodes=1,
-            sshKeyId="k",
-            subnetId="sub-1",
-        )
+    spec = NodeGroupSpec(
+        name="ng",
+        flavorId="f",
+        diskSize=100,
+        diskType="SSD",
+        numNodes=1,
+        sshKeyId="k",
+        subnetId="sub-1",
+    )
+    assert "secondarySubnets" not in spec.model_dump(exclude_none=True)
 
 
 def test_create_cluster_combo_rejects_secondary_subnets():
