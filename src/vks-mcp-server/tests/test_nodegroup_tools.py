@@ -375,6 +375,8 @@ async def test_nodegroup_create_accepts_dto(handler_write, respx_mock):
         numNodes=2,
         securityGroups=["sg-001"],
         sshKeyId="key-001",
+        subnetId="sub-1",
+        secondarySubnets=[],
         os="rocky",
     )
     result = await handler_write.create_nodegroup(cluster_id=cluster_id, body=dto, region=None)
@@ -567,6 +569,8 @@ async def test_nodegroup_create_error_teaches_the_guide(handler_write, respx_moc
         diskType="vtype-001",
         numNodes=1,
         sshKeyId="ssh-001",
+        subnetId="sub-1",
+        secondarySubnets=[],
     )
     with pytest.raises(RuntimeError, match="get_creation_guide"):
         await handler_write.create_nodegroup(cluster_id="k8s-abc", body=dto, region=None)
@@ -610,6 +614,7 @@ def _valid_ng_body(**over):
         "numNodes": 2,
         "sshKeyId": "ssh-ok",
         "subnetId": "sub-ok",
+        "secondarySubnets": [],
     }
     body.update(over)
     return CreateNodeGroupDto(**body)
@@ -630,9 +635,16 @@ def _mock_validation_chain(respx_mock):
                         "name": "s1",
                         "status": "ACTIVE",
                         "zone": {"uuid": "HCM03-1A", "name": "1A"},
-                    }
+                    },
+                    {
+                        "uuid": "sub-sec",
+                        "name": "s2",
+                        "status": "ACTIVE",
+                        "zone": {"uuid": "HCM03-1A", "name": "1A"},
+                        "secondarySubnets": [{"cidr": "10.5.60.0/22"}],
+                    },
                 ],
-                "totalItem": 1,
+                "totalItem": 2,
             },
         )
     )
@@ -742,6 +754,50 @@ async def test_validate_nodegroup_create_unknown_ssh_key(validate_handler, respx
         cluster_id="k8s-abc", body=_valid_ng_body(sshKeyId="ssh-ghost")
     )
     assert result != "valid" and "sshKeyId" in result and "list_ssh_keys" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_secondary_subnets_must_mirror_subnet(
+    validate_handler, respx_mock
+):
+    """secondarySubnets must copy the chosen subnet's secondary_subnets CIDRs
+    verbatim — an empty list on a subnet that HAS secondaries is an error."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-abc", body=_valid_ng_body(subnetId="sub-sec")
+    )
+    assert result != "valid"
+    assert "secondarySubnets" in result and "10.5.60.0/22" in result
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_secondary_subnets_verbatim_ok(validate_handler, respx_mock):
+    """The subnet's CIDRs copied verbatim pass validation."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-abc",
+        body=_valid_ng_body(subnetId="sub-sec", secondarySubnets=["10.5.60.0/22"]),
+    )
+    assert result == "valid"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_validate_nodegroup_secondary_subnets_rejects_foreign_cidr(
+    validate_handler, respx_mock
+):
+    """CIDRs that are not the chosen subnet's secondaries are rejected."""
+    _mock_iam(respx_mock)
+    _mock_validation_chain(respx_mock)
+    result = await validate_handler.validate_nodegroup_create(
+        cluster_id="k8s-abc",
+        body=_valid_ng_body(secondarySubnets=["10.9.9.0/24"]),
+    )
+    assert result != "valid" and "secondarySubnets" in result
 
 
 @respx.mock

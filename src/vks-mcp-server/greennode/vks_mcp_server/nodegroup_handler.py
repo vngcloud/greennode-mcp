@@ -163,7 +163,8 @@ class NodeGroupHandler:
         at both ends; autoscale bounds) plus cross-checks against live discovery
         (cached): the subnet belongs to the cluster's VPC — the ONLY subnet
         requirement; it does NOT need to be one of the cluster's own
-        subnets or zones — flavorId and diskType
+        subnets or zones — secondarySubnets equals the chosen subnet's
+        `secondary_subnets` CIDRs verbatim, flavorId and diskType
         exist in the subnet's availability zone, sshKeyId and securityGroups
         exist in the cluster's region. Returns "valid" or every problem found,
         each with the discovery tool that fixes it.
@@ -189,9 +190,11 @@ class NodeGroupHandler:
 
         from greennode.vks_mcp_server.discovery_handler import (
             _flavor_list,
+            _locate_cluster,
             _resolve_zone_context,
             _secgroup_list,
             _sshkey_list,
+            _subnet_list,
             _volumetype_list,
         )
 
@@ -202,6 +205,19 @@ class NodeGroupHandler:
         except ValueError as exc:
             errors.append(str(exc))
             return self._validation_report(errors)
+
+        # secondarySubnets must mirror the chosen subnet's secondary_subnets CIDRs
+        # verbatim (both calls are cache hits — _resolve_zone_context just fetched).
+        _, vpc_id = await _locate_cluster(self.config, self.client, self.cache, cluster_id)
+        subnets = await _subnet_list(self.config, self.client, self.cache, vpc_id, region)
+        chosen = next(s for s in subnets.subnets if s.id == body.subnetId)
+        if sorted(body.secondarySubnets) != sorted(chosen.secondary_subnets):
+            errors.append(
+                f"secondarySubnets: must be exactly the `secondary_subnets` CIDRs of "
+                f"the chosen subnet '{body.subnetId}' — expected "
+                f"{chosen.secondary_subnets}, got {body.secondarySubnets} "
+                "(copy the list from list_subnets verbatim)"
+            )
 
         flavors = await _flavor_list(
             self.config, self.client, self.cache, zone=zone, region=region
@@ -298,11 +314,13 @@ class NodeGroupHandler:
             ...,
             description=(
                 "CreateNodeGroupDto body. Required: name, flavorId, diskType, sshKeyId, "
-                "diskSize (20-5000), numNodes (0-10), subnetId. Optional groups — offer "
+                "diskSize (20-5000), numNodes (0-10), subnetId, secondarySubnets (the "
+                "chosen subnet's secondary_subnets CIDRs, copied verbatim from "
+                "list_subnets — [] when it has none). Optional groups — offer "
                 "each to the user (see the tool's Workflow): os (ubuntu|linux|rocky, "
                 "default ubuntu) and upgradeConfig; networking/security "
-                "(enablePrivateNodes, enabledEncryptionVolume, securityGroups, "
-                "secondarySubnets); scaling (autoScaleConfig); scheduling metadata "
+                "(enablePrivateNodes, enabledEncryptionVolume, securityGroups); "
+                "scaling (autoScaleConfig); scheduling metadata "
                 "(labels, taints, tags); placement (placementGroupConfigDto)."
             ),
         ),

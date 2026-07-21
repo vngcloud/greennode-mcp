@@ -557,8 +557,8 @@ class DiscoveryHandler:
           IMPORTANT: do NOT pick a subnet silently when more than one exists.
         - The chosen subnet's `zone.uuid` scopes the next steps: pass it to
           list_flavors and list_volume_types (flavors/disk types differ per zone).
-        - Use the chosen `id` as `subnetId`; use its `secondary_subnets` as
-          `secondarySubnets` when networkType is CILIUM_NATIVE_ROUTING.
+        - Use the chosen `id` as `subnetId`; for create_nodegroup, copy its
+          `secondary_subnets` verbatim as the required `secondarySubnets`.
         """
         return await _subnet_list(
             self.config, self.client, self.cache, vpc_id=vpc_id, region=region, refresh=refresh

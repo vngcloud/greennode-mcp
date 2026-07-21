@@ -109,7 +109,22 @@ async def test_cluster_create_body_lists_valid_values(config, client):
     assert "RAPID" in release_channel_enum and "STABLE" in release_channel_enum
     network_type_enum = dto_def["properties"]["networkType"]["enum"]
     assert "CILIUM_NATIVE_ROUTING" in network_type_enum
-    assert "secondarySubnets" in dto_def["properties"]
+    # secondary subnets belong to node groups, not the cluster
+    assert "secondarySubnets" not in dto_def["properties"]
+
+
+@pytest.mark.asyncio
+async def test_nodegroup_create_body_requires_subnet_and_secondary_subnets(config, client):
+    """subnetId + secondarySubnets are required in the node-group DTO — the
+    schema forces the subnet choice and its verbatim secondary CIDRs."""
+    schema = await _schema_for(
+        lambda mcp: NodeGroupHandler(mcp, config, client, allow_write=True),
+        "create_nodegroup",
+    )
+    dto_def = schema.get("$defs", {})["CreateNodeGroupDto"]
+    required = dto_def["required"]
+    assert "subnetId" in required
+    assert "secondarySubnets" in required
 
 
 @pytest.mark.asyncio
