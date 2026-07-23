@@ -921,7 +921,12 @@ class AutoUpgradeConfig(BaseModel):
 
 
 class AutoHealingConfig(BaseModel):
-    """Cluster auto-healing configuration."""
+    """Cluster auto-healing configuration.
+
+    When enabling (enableAutoHealing=true), set EXACTLY ONE of maxUnhealthy or
+    unhealthyRange. When disabling, {enableAutoHealing: false} alone is a valid
+    body.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -990,7 +995,13 @@ class CreateClusterComboDto(BaseModel):
         None, description="Auto-upgrade schedule"
     )
     autoHealingConfig: Optional[AutoHealingConfig] = Field(
-        None, description="Auto-healing configuration"
+        None,
+        description=(
+            "Auto-healing configuration. Omitted ⇒ the PLATFORM default applies "
+            "(currently ON) — to honor an explicit 'off', send "
+            "{enableAutoHealing: false}; never encode the user's 'no' as an "
+            "omitted field"
+        ),
     )
 
 

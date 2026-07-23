@@ -212,3 +212,15 @@ async def test_nodegroup_prompt_subnet_only_needs_vpc_membership():
     server = create_server()
     text = await _prompt_text(server, "vks_create_nodegroup", {})
     assert "KHÔNG cần trùng subnet/zone" in text
+
+
+@pytest.mark.asyncio
+async def test_create_cluster_prompt_auto_healing_never_omitted():
+    """Field bug: the user said 'no' to auto healing, the agent omitted the
+    field, and the platform default (ON) won. The guide must force an
+    explicit {enableAutoHealing: false} instead of an omitted field."""
+    server = create_server()
+    text = await _prompt_text(server, "vks_create_cluster", {})
+    assert "enableAutoHealing: false" in text
+    assert "KHÔNG bỏ" in text  # never encode 'no' as an omitted field
+    assert "default của platform" in text

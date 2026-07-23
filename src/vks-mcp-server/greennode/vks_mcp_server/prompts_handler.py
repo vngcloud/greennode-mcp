@@ -110,8 +110,13 @@ def _create_cluster_guidance() -> str:
    i. Tuỳ chọn: plugins — `enabledLoadBalancerPlugin`,
       `enabledBlockStoreCsiPlugin` (mặc định bật cả hai).
    j. Tuỳ chọn: `autoUpgradeConfig` (weekdays + time).
-   k. Tuỳ chọn: `autoHealingConfig` (enableAutoHealing, maxUnhealthy,
-      unhealthyRange, timeoutUnhealthy 5–180 phút).
+   k. Auto healing — hỏi bật/tắt, và LUÔN gửi field tường minh (KHÔNG bỏ
+      trống: bỏ trống là nhận default của platform — hiện đang BẬT, trái ý
+      user đã nói "không"):
+      - Không → `autoHealingConfig: {enableAutoHealing: false}`.
+      - Có → hỏi thêm ĐÚNG MỘT trong `maxUnhealthy` (vd `'2'`/`'40%'`) hoặc
+        `unhealthyRange` (vd `'[3-5]'`), tuỳ chọn `timeoutUnhealthy`
+        (5–180 phút).
 4. Chạy `validate_cluster_create` với body; có lỗi → sửa rồi validate lại.
 5. Trình plan ĐẦY ĐỦ — bảng mọi field + giá trị, đánh dấu `[auto]`/`[bạn chọn]`
    (gồm cả `poc=false`, `autoRenewal=true`); cho sửa field. Bảng phải nằm NGAY
