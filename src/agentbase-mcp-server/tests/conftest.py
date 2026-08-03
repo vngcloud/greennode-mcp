@@ -1,20 +1,29 @@
-"""Pytest fixtures for the AGENTBASE MCP server tests."""
+"""Fixtures for agentbase-mcp-server tests (passthrough — no IAM, no creds).
+
+Every upstream call in tests must carry Authorization: Bearer test-bearer,
+forwarded from user_token_var — that is the core passthrough invariant.
+"""
 
 import pytest
+from greennode.agentbase_mcp_server.auth import PassthroughTokenManager
+from greennode.agentbase_mcp_server.client import AgentbaseClient
+from greennode.agentbase_mcp_server.config import load_config
+from greennode.mcp_core.http import user_token_var
 
 
 @pytest.fixture
-def sample_config(tmp_path):
-    """Fake greenode directory with credentials and config INI files."""
-    greenode_dir = tmp_path / ".greenode"
-    greenode_dir.mkdir()
+def config():
+    return load_config(env={})
 
-    credentials = greenode_dir / "credentials"
-    credentials.write_text(
-        "[default]\nclient_id = test-client-id\nclient_secret = test-client-secret\n"
-    )
 
-    config = greenode_dir / "config"
-    config.write_text("[default]\nregion = HCM-3\noutput = json\nproject_id = pro-test-0001\n")
+@pytest.fixture
+def passthrough_token():
+    """Set the caller bearer token for the test scope; reset after."""
+    ctx = user_token_var.set("test-bearer")
+    yield "test-bearer"
+    user_token_var.reset(ctx)
 
-    return greenode_dir
+
+@pytest.fixture
+def policy_client(passthrough_token):
+    return AgentbaseClient(config=load_config(env={}), token_manager=PassthroughTokenManager())
