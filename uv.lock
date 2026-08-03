@@ -10,6 +10,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "greennode-agentbase-mcp-server",
     "greennode-mcp",
     "greennode-mcp-core",
     "greennode-vks-mcp-server",
@@ -748,13 +749,41 @@ wheels = [
 ]
 
 [[package]]
+name = "greennode-agentbase-mcp-server"
+version = "0.0.0"
+source = { editable = "src/agentbase-mcp-server" }
+dependencies = [
+    { name = "greennode-mcp-core" },
+    { name = "httpx" },
+    { name = "mcp", extra = ["cli"] },
+    { name = "pydantic" },
+    { name = "starlette" },
+]
+
+[package.optional-dependencies]
+http = [
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "greennode-mcp-core", editable = "src/mcp-core" },
+    { name = "httpx", specifier = ">=0.27.0,<1.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.28.1" },
+    { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "starlette", specifier = ">=0.27.0" },
+    { name = "uvicorn", marker = "extra == 'http'", specifier = ">=0.30.0" },
+]
+provides-extras = ["http"]
+
+[[package]]
 name = "greennode-mcp"
 version = "0.0.0"
 source = { virtual = "." }
 
 [[package]]
 name = "greennode-mcp-core"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "src/mcp-core" }
 dependencies = [
     { name = "cachetools" },
@@ -785,7 +814,7 @@ dev = [
 
 [[package]]
 name = "greennode-vks-mcp-server"
-version = "0.13.0"
+version = "0.13.2"
 source = { editable = "src/vks-mcp-server" }
 dependencies = [
     { name = "cachetools" },

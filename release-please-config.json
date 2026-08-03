@@ -24,6 +24,15 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
       "changelog-path": "CHANGELOG.md"
+    },
+    "src/agentbase-mcp-server": {
+      "release-type": "python",
+      "package-name": "agentbase-mcp-server",
+      "component": "agentbase-mcp-server",
+      "include-component-in-tag": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }

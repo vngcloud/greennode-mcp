@@ -1,4 +1,5 @@
 {
   "src/vks-mcp-server": "0.13.2",
-  "src/mcp-core": "0.4.1"
+  "src/mcp-core": "0.4.1",
+  "src/agentbase-mcp-server": "0.0.0"
 }
