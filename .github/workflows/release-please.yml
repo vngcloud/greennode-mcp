@@ -53,6 +53,10 @@ jobs:
                 echo "Dispatching deploy for $tag"
                 gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=$tag"
                 ;;
+              agentbase-mcp-server-v*)
+                echo "Dispatching deploy for $tag"
+                gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main -f "tag=$tag"
+                ;;
               *)
                 echo "No deploy configured for $tag — skipping"
                 ;;
