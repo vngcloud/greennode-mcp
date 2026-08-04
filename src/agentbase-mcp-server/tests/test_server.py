@@ -1,63 +1,67 @@
-"""Tests for the AGENTBASE MCP server scaffold."""
+"""Tests for create_server, /health, and tool registration."""
 
 from __future__ import annotations
 
-import httpx
-import pytest
-import respx
+from greennode.agentbase_mcp_server.auth import PassthroughTokenManager
 from greennode.agentbase_mcp_server.client import AgentbaseClient
 from greennode.agentbase_mcp_server.config import load_config
-from greennode.agentbase_mcp_server.example_handler import ExampleHandler, ExampleListData
+from greennode.agentbase_mcp_server.discovery_cache import DiscoveryCache
+from greennode.agentbase_mcp_server.policy_handler import PolicyHandler
 from greennode.agentbase_mcp_server.server import create_server
-from greennode.mcp_core.auth import TokenManager
 from mcp.server.fastmcp import FastMCP
 
 
-IAM_URL = "https://iamapis.vngcloud.vn/accounts-api/v1/auth/token"
-API_BASE = "https://agentbase.api.vngcloud.vn"
+def _wire(allow_write=False):
+    mcp = create_server(allow_write=allow_write)
+    client = AgentbaseClient(load_config(env={}), PassthroughTokenManager())
+    PolicyHandler(mcp, None, client, DiscoveryCache(), allow_write=allow_write)
+    return mcp
 
 
-def _mock_iam(mock: respx.MockRouter) -> None:
-    mock.post(IAM_URL).mock(
-        return_value=httpx.Response(200, json={"accessToken": "tok", "expiresIn": 1800})
-    )
+def test_create_server_returns_fastmcp():
+    assert isinstance(create_server(), FastMCP)
 
 
-@pytest.fixture
-def config(sample_config):
-    return load_config(sample_config)
+def test_read_only_server_registers_six_tools():
+    mcp = _wire(allow_write=False)
+    # 5 reads + 1 decision (always) = 6; writes gated off.
+    tools = mcp._tool_manager._tools  # FastMCP internal tool registry
+    names = set(tools.keys())
+    for expected in [
+        "list_condition_operators",
+        "list_policy_groups",
+        "get_policy_group",
+        "list_policies",
+        "get_policy",
+        "get_authorization_decision",
+    ]:
+        assert expected in names, names
+    # Writes absent.
+    assert "create_policy_group" not in names
 
 
-@pytest.fixture
-def client(config):
-    return AgentbaseClient(config, TokenManager(config))
+def test_write_server_registers_twelve_tools():
+    mcp = _wire(allow_write=True)
+    names = set(mcp._tool_manager._tools.keys())
+    for expected in [
+        "create_policy_group",
+        "update_policy_group",
+        "delete_policy_group",
+        "create_policy",
+        "update_policy",
+        "delete_policy",
+    ]:
+        assert expected in names, names
+    assert len(names) == 12, names
 
 
-@pytest.fixture
-def handler(config, client):
-    return ExampleHandler(FastMCP("test"), config, client)
+def test_health_endpoint():
+    """The /health route is unauthenticated (open even with no bearer)."""
+    from starlette.testclient import TestClient
 
-
-def test_create_server():
-    server = create_server()
-    assert server.name == "agentbase-mcp-server"
-
-
-@pytest.mark.asyncio
-async def test_list_examples_registered(handler):
-    tools = {t.name for t in await handler.mcp.list_tools()}
-    assert "list_examples" in tools
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_list_examples_returns_structured(config, client, handler):
-    _mock_iam(respx.mock)
-    respx.get(f"{API_BASE}/v1/examples").mock(
-        return_value=httpx.Response(
-            200, json={"items": [{"id": "ex-1", "name": "demo", "status": "ACTIVE"}]}
-        )
-    )
-    result = await handler.list_examples(region=None)
-    assert isinstance(result, ExampleListData)
-    assert result.items[0].id == "ex-1"
+    mcp = _wire(allow_write=False)
+    app = mcp.streamable_http_app()
+    with TestClient(app) as client:
+        r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
