@@ -14,14 +14,20 @@ from __future__ import annotations
 from greennode.agentbase_mcp_server.client import AgentbaseClient
 from greennode.agentbase_mcp_server.discovery_cache import DiscoveryCache
 from greennode.agentbase_mcp_server.models import (
+    AuthorizationDecisionDto,
+    AuthorizationDecisionResult,
     ConditionOperatorListData,
+    CreatePolicyDto,
+    CreatePolicyGroupDto,
     PolicyData,
     PolicyGroupData,
     PolicyGroupListData,
     PolicyListData,
+    UpdatePolicyDto,
+    UpdatePolicyGroupDto,
 )
 from greennode.agentbase_mcp_server.paging import fetch_all_agentbase_items
-from greennode.agentbase_mcp_server.tool_annotations import READ
+from greennode.agentbase_mcp_server.tool_annotations import DESTRUCTIVE, READ, WRITE
 from greennode.mcp_core.validators import validate_id
 from pydantic import Field
 from typing import Any
@@ -80,6 +86,92 @@ async def _policy_get(client: AgentbaseClient, group_id: str, policy_id: str) ->
     return PolicyData.from_api(data)
 
 
+# --- Module-level logic (write + decision ops) ---
+
+
+async def _policy_group_create(
+    client: AgentbaseClient, body: CreatePolicyGroupDto
+) -> PolicyGroupData:
+    """POST /api/v1/policy-groups."""
+    data = await client.post("/api/v1/policy-groups", json=body.model_dump(exclude_none=True))
+    data = data or {}
+    return PolicyGroupData.from_api(data)
+
+
+async def _policy_group_update(
+    client: AgentbaseClient, group_id: str, body: UpdatePolicyGroupDto
+) -> PolicyGroupData:
+    """PUT /api/v1/policy-groups/{group_id} (partial update)."""
+    validate_id(group_id, "group_id")
+    data = await client.put(
+        f"/api/v1/policy-groups/{group_id}", json=body.model_dump(exclude_none=True)
+    )
+    data = data or {}
+    return PolicyGroupData.from_api(data)
+
+
+async def _policy_group_delete(client: AgentbaseClient, group_id: str) -> str:
+    """DELETE /api/v1/policy-groups/{group_id}."""
+    validate_id(group_id, "group_id")
+    await client.delete(f"/api/v1/policy-groups/{group_id}")
+    return f"Policy group {group_id} deleted."
+
+
+async def _policy_create(
+    client: AgentbaseClient, group_id: str, body: CreatePolicyDto
+) -> PolicyData:
+    """POST /api/v1/policy-groups/{group_id}/policies."""
+    validate_id(group_id, "group_id")
+    data = await client.post(
+        f"/api/v1/policy-groups/{group_id}/policies",
+        json=body.model_dump(exclude_none=True),
+    )
+    data = data or {}
+    return PolicyData.from_api(data)
+
+
+async def _policy_update(
+    client: AgentbaseClient, group_id: str, policy_id: str, body: UpdatePolicyDto
+) -> PolicyData:
+    """PUT /api/v1/policy-groups/{group_id}/policies/{policy_id} (partial update)."""
+    validate_id(group_id, "group_id")
+    validate_id(policy_id, "policy_id")
+    data = await client.put(
+        f"/api/v1/policy-groups/{group_id}/policies/{policy_id}",
+        json=body.model_dump(exclude_none=True),
+    )
+    data = data or {}
+    return PolicyData.from_api(data)
+
+
+async def _policy_delete(client: AgentbaseClient, group_id: str, policy_id: str) -> str:
+    """DELETE /api/v1/policy-groups/{group_id}/policies/{policy_id}."""
+    validate_id(group_id, "group_id")
+    validate_id(policy_id, "policy_id")
+    await client.delete(f"/api/v1/policy-groups/{group_id}/policies/{policy_id}")
+    return f"Policy {policy_id} deleted."
+
+
+async def _authorization_decision_get(
+    client: AgentbaseClient,
+    gateway_name: str,
+    target_name: str,
+    body: AuthorizationDecisionDto,
+) -> AuthorizationDecisionResult:
+    """POST /internal/api/v1/gateways/{gatewayName}/targets/{targetName}/decisions.
+
+    POST-but-read: returns an allow/deny decision, mutates no state.
+    """
+    validate_id(gateway_name, "gateway_name")
+    validate_id(target_name, "target_name")
+    data = await client.post(
+        f"/internal/api/v1/gateways/{gateway_name}/targets/{target_name}/decisions",
+        json=body.model_dump(exclude_none=True),
+    )
+    data = data or {}
+    return AuthorizationDecisionResult.from_api(data)
+
+
 class PolicyHandler:
     """Register and serve the 12 Agentbase policy tools."""
 
@@ -106,9 +198,21 @@ class PolicyHandler:
         self.mcp.tool(name="list_policies", annotations=READ)(self.list_policies)
         self.mcp.tool(name="get_policy", annotations=READ)(self.get_policy)
 
-        # Write tools (only with --allow-write) — added in Task 8.
-        # if self.allow_write:
-        #     ...
+        # Write tools (only with --allow-write).
+        if self.allow_write:
+            self.mcp.tool(name="create_policy_group", annotations=WRITE)(self.create_policy_group)
+            self.mcp.tool(name="update_policy_group", annotations=WRITE)(self.update_policy_group)
+            self.mcp.tool(name="delete_policy_group", annotations=DESTRUCTIVE)(
+                self.delete_policy_group
+            )
+            self.mcp.tool(name="create_policy", annotations=WRITE)(self.create_policy)
+            self.mcp.tool(name="update_policy", annotations=WRITE)(self.update_policy)
+            self.mcp.tool(name="delete_policy", annotations=DESTRUCTIVE)(self.delete_policy)
+
+        # Decisions: POST-but-read — always registered, not gated.
+        self.mcp.tool(name="get_authorization_decision", annotations=READ)(
+            self.get_authorization_decision
+        )
 
     async def list_condition_operators(
         self,
@@ -152,3 +256,106 @@ class PolicyHandler:
     ) -> PolicyData:
         """Get a single policy by id within a policy group."""
         return await _policy_get(self.client, group_id=group_id, policy_id=policy_id)
+
+    async def create_policy_group(
+        self,
+        body: CreatePolicyGroupDto = Field(
+            ...,
+            description="CreatePolicyGroupDto: {name (required), description?}.",
+        ),
+    ) -> str:
+        """Create a policy group.
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        result = await _policy_group_create(self.client, body)
+        return f"Created policy group {result.id or result.name}."
+
+    async def update_policy_group(
+        self,
+        group_id: str = Field(..., description="Policy group id to update."),
+        body: UpdatePolicyGroupDto = Field(
+            ...,
+            description="Partial-update body: {name?, description?} — send only fields to change.",
+        ),
+    ) -> str:
+        """Update a policy group (partial update).
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        result = await _policy_group_update(self.client, group_id=group_id, body=body)
+        return f"Updated policy group {result.id or group_id}."
+
+    async def delete_policy_group(
+        self,
+        group_id: str = Field(..., description="Policy group id to delete."),
+    ) -> str:
+        """Delete a policy group (destructive).
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        return await _policy_group_delete(self.client, group_id=group_id)
+
+    async def create_policy(
+        self,
+        group_id: str = Field(..., description="Policy group id to create the policy in."),
+        body: CreatePolicyDto = Field(
+            ...,
+            description="CreatePolicyDto: {name, statement{actions,effect,resources,principal?,condition?}, active?, description?}.",
+        ),
+    ) -> str:
+        """Create a policy within a policy group.
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        result = await _policy_create(self.client, group_id=group_id, body=body)
+        return f"Created policy {result.id or result.name}."
+
+    async def update_policy(
+        self,
+        group_id: str = Field(..., description="Policy group id."),
+        policy_id: str = Field(..., description="Policy id to update."),
+        body: UpdatePolicyDto = Field(
+            ...,
+            description="Partial-update body — send only fields to change.",
+        ),
+    ) -> str:
+        """Update a policy (partial update).
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        result = await _policy_update(
+            self.client, group_id=group_id, policy_id=policy_id, body=body
+        )
+        return f"Updated policy {result.id or policy_id}."
+
+    async def delete_policy(
+        self,
+        group_id: str = Field(..., description="Policy group id."),
+        policy_id: str = Field(..., description="Policy id to delete."),
+    ) -> str:
+        """Delete a policy (destructive).
+
+        ## Requirements
+        - Server must run with --allow-write.
+        """
+        return await _policy_delete(self.client, group_id=group_id, policy_id=policy_id)
+
+    async def get_authorization_decision(
+        self,
+        gateway_name: str = Field(..., description="Gateway name (path id)."),
+        target_name: str = Field(..., description="Target name (path id)."),
+        body: AuthorizationDecisionDto = Field(
+            ...,
+            description="AuthorizationDecisionDto: {action, policyGroupId, user{id,type}, context?, principal?}.",
+        ),
+    ) -> AuthorizationDecisionResult:
+        """Evaluate an authorization request — returns allow/deny (POST-but-read, no state change)."""
+        return await _authorization_decision_get(
+            self.client, gateway_name=gateway_name, target_name=target_name, body=body
+        )
